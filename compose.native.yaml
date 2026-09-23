@@ -1,0 +1,16 @@
+# Optional native crash processing. No Symbolicator ports are exposed to the host.
+services:
+  crashguard:
+    environment:
+      SYMBOLICATOR_URL: http://symbolicator:3021
+      SYMBOLICATOR_SOURCES: ${SYMBOLICATOR_SOURCES:-[]}
+    depends_on:
+      - symbolicator
+  symbolicator:
+    image: ghcr.io/getsentry/symbolicator:26.9.0@sha256:f38cf17e84e1d6ae0571f326684fdc5f4e7d27fa6bc6c847f687fc51ea8beebc
+    command: ["run"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
