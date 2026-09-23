@@ -32,7 +32,7 @@ jobs:
           node-version: "24"
       - run: npm ci
       - run: npm test
-      - run: python3 -B -m unittest discover -s tests -p 'test_deploy.py' -v
+      - run: python3 -B -m unittest discover -s tests -p 'test_*.py' -v
       - run: npx next typegen
       - run: npm run typecheck
       - run: npm run build

@@ -4,9 +4,11 @@
 
 ## Local checks
 
+The deployment tests require Python 3, Bash, and `jq`. They also check that only a matching merged release PR is eligible for production deployment.
+
 ```bash
 npm test
-python3 -B -m unittest discover -s tests -p 'test_deploy.py' -v
+python3 -B -m unittest discover -s tests -p 'test_*.py' -v
 npx next typegen
 npm run typecheck
 npm run build

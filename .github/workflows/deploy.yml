@@ -1,9 +1,8 @@
 name: Deploy production
 
 on:
-  pull_request:
+  push:
     branches: [production]
-    types: [closed]
 
 permissions:
   contents: read
@@ -13,14 +12,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release:
+    if: github.repository == 'suciudan/crashguard' && github.ref == 'refs/heads/production'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      eligible: ${{ steps.merge.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify main was merged into production
+        id: merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          # Wait briefly for GitHub's PR metadata to reflect the merge.
+          for attempt in 1 2 3; do
+            eligible=$(gh api --paginate --slurp "repos/$REPOSITORY/commits/$COMMIT/pulls" \
+              | jq --arg sha "$COMMIT" --arg repo "$REPOSITORY" -f scripts/production-merge.jq)
+            if [[ "$eligible" == true ]]; then break; fi
+            if [[ "$attempt" != 3 ]]; then sleep 5; fi
+          done
+          echo "eligible=$eligible" >> "$GITHUB_OUTPUT"
+          if [[ "$eligible" != true ]]; then
+            echo 'Skipping deployment: this commit is not a merged main-to-production PR.'
+          fi
+
   checks:
-    if: >-
-      github.repository == 'suciudan/crashguard' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'main' &&
-      github.event.pull_request.base.ref == 'production' &&
-      github.ref == 'refs/heads/production'
+    needs: release
+    if: needs.release.outputs.eligible == 'true'
     uses: ./.github/workflows/ci.yml
 
   image:

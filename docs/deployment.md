@@ -4,7 +4,7 @@
 
 The workflows target `suciudan/crashguard` and an **x64 Linux VPS**. Pull requests targeting `main` or `production` run checks on GitHub-hosted runners. Merging a pull request from this repository's `main` into `production` tests the merged commit, publishes an image to GHCR, then waits for production approval. Your VPS runner deploys that exact image digest with Docker Compose.
 
-Direct pushes, unmerged closed pull requests, and merges from other branches or forks do not trigger deployment. To retry a failed deployment, rerun its existing Actions run.
+The workflow runs on pushes to `production` so GitHub applies the Environment's branch policy to the actual deployment branch. Before building, it checks GitHub's PR metadata: the pushed commit must be the merge result of a `main` → `production` PR from this repository. Direct pushes without a matching merged PR and merges from other branches or forks are skipped. To retry a failed deployment, rerun its existing Actions run.
 
 ## Protect the repository first
 
