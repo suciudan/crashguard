@@ -2,7 +2,9 @@
 
 [Back to README](../README.md)
 
-The workflows target `suciudan/crashguard` and an **x64 Linux VPS**. Pull requests run checks on GitHub-hosted runners. A push to `main` runs those checks, publishes an image to GHCR, then waits for production approval. Your VPS runner deploys that exact image digest with Docker Compose.
+The workflows target `suciudan/crashguard` and an **x64 Linux VPS**. Pull requests targeting `main` or `production` run checks on GitHub-hosted runners. Merging a pull request from this repository's `main` into `production` tests the merged commit, publishes an image to GHCR, then waits for production approval. Your VPS runner deploys that exact image digest with Docker Compose.
+
+Direct pushes, unmerged closed pull requests, and merges from other branches or forks do not trigger deployment. To retry a failed deployment, rerun its existing Actions run.
 
 ## Protect the repository first
 
@@ -11,8 +13,8 @@ A public repository lets anyone open a pull request. It does **not** grant permi
 Before registering the production runner, configure these GitHub settings:
 
 - **Actions → General → Approval for running fork pull request workflows:** require approval for **all external contributors**. Keep the default workflow token read-only and Actions PR approval disabled.
-- **Environments → production:** add `suciudan` as a required reviewer; allow the selected **branch** `main` only. Allow your own deployment approvals if you are the sole maintainer. Disable administrator bypass in the environment settings.
-- **Rules → Rulesets:** protect `main` against deletion and force pushes. Require pull requests and the `Checks` status once the first CI run has registered it. If you add collaborators, require your code-owner review for changes to deployment workflows and scripts.
+- **Environments → production:** add `suciudan` as a required reviewer; allow the selected **branch** `production` only. Allow your own deployment approvals if you are the sole maintainer. Disable administrator bypass in the environment settings.
+- **Rules → Rulesets:** protect `main` and `production` against deletion and force pushes. Require pull requests and the `Checks` status once the first CI run has registered it. If you add collaborators, require your code-owner review for changes to deployment workflows and scripts.
 
 **Public self-hosted runner caveat:** an environment protects jobs that reference it; it cannot stop a modified PR workflow from requesting the runner without that environment. Labels are not access controls. Inspect every external workflow run before approving it, including changes to workflow files, local actions, scripts, and dependencies. Never run external PR code on this VPS. GitHub [recommends against self-hosted runners in public repositories](https://docs.github.com/en/actions/reference/security/secure-use#hardening-for-self-hosted-runners); these controls reduce exposure but do not provide isolation. Docker access gives a runner substantial control over the host.
 
@@ -42,7 +44,7 @@ Set up an HTTPS reverse proxy on the VPS, forwarding to `127.0.0.1:5000`. The ap
 1. In **Settings → Actions → Runners → New self-hosted runner**, follow GitHub's Linux x64 installation commands on the VPS. Add the label **`prod`** and install it as a service under the dedicated account.
 2. In **Settings → Secrets and variables → Actions → Variables**, set repository variable **`PRODUCTION_URL`**, e.g. `https://crashguard.example.com` (no trailing slash). It is used during both image build and deployment. No SSH credentials or long-lived registry token are needed.
 3. Optional: set repository variable **`CRASHGUARD_NATIVE=1`** to start Symbolicator for minidumps. Configure `SYMBOLICATOR_SOURCES` in the host environment file if needed.
-4. Commit and push the workflow files. After checks and image publication succeed, open the **Deploy production** run and approve the **production** deployment. **Run workflow** on `main` also builds and deploys it.
+4. Commit and push the workflow files to `main`. Create `production` from the current remote `main` first if the branch does not exist. Open a pull request with **base: `production`** and **compare: `main`**, then merge it when CI passes. After image publication succeeds, open the **Deploy production** run and approve the **production** deployment.
 
 GitHub's job token authenticates GHCR. If a package with this name already exists, grant this repository Actions access in that package's settings. The default setup requires no production secrets in GitHub; runtime configuration stays in `/opt/crashguard/.env.production`.
 
