@@ -182,7 +182,9 @@ export function dashboard(
     .all(...args, offset) as Issue[];
   const environments = (
     db()
-      .prepare("SELECT DISTINCT environment FROM events ORDER BY environment")
+      .prepare(
+        "SELECT 'production' AS environment UNION SELECT environment FROM events ORDER BY environment",
+      )
       .all() as { environment: string }[]
   ).map((e) => e.environment);
   return { projects: projects(), issues, total, stats, activity, environments };

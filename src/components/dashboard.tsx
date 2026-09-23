@@ -40,7 +40,7 @@ import { action, Platform, relative } from "./shared";
 import Logo from "./logo";
 import { getDashboard } from "@/app/actions/dashboard";
 import { SignOut } from "./passkeys";
-import { AppLink, CopyLink, useAppNavigation } from "./navigation";
+import { AppLink, useAppNavigation } from "./navigation";
 import { Telemetry, telemetryViews } from "./telemetry";
 import { Operations } from "./operations";
 export default function Dashboard() {
@@ -349,7 +349,6 @@ export default function Dashboard() {
               )}
             </div>
             <div className="page-actions">
-              <CopyLink notify={notify} />
               <button className="button primary" onClick={() => setModal(true)}>
                 <Plus size={16} />
                 New project

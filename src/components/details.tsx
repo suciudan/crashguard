@@ -26,7 +26,7 @@ import {
   updateIssueStatus,
 } from "@/app/actions/dashboard";
 import { findRelatedReplay } from "@/app/actions/telemetry";
-import { AppLink, CopyLink, useAppNavigation } from "./navigation";
+import { AppLink, useAppNavigation } from "./navigation";
 function useDialog(onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -517,14 +517,6 @@ export function IssuePanel({
               <h2 id="issue-panel-title">{detail.issue.title}</h2>
               <p>{detail.issue.culprit}</p>
               <div className="panel-actions">
-                <CopyLink
-                  href={href({
-                    issue: id,
-                    event: event?.event_id || eventId,
-                    tab,
-                  })}
-                  notify={notify}
-                />
                 <button
                   disabled={saving}
                   className="button primary"
