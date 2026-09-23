@@ -45,6 +45,8 @@ docker compose --env-file .env.local down
 
 See [deployment and storage](docs/operations.md#deployment-and-storage) for permissions, backups, and native crash processing.
 
+For GitHub Actions deployment to a VPS with a self-hosted runner, follow the [production setup](docs/deployment.md). It includes image builds, deployment approval, and SQLite backups.
+
 ## Connect your app
 
 Install the appropriate [Sentry SDK](https://docs.sentry.io/platforms/) in your application and use the DSN from **SDK setup**.
@@ -116,7 +118,7 @@ npm run typecheck
 npm run build
 ```
 
-Real SDK, browser, passkey, replay, native-crash, and Docker checks are available separately. See [testing](docs/testing.md) for setup and commands. Coverage percentages and CI are not configured yet.
+GitHub Actions runs tests, type checks, and a production build. Real SDK, browser, passkey, replay, native-crash, and Docker checks are available separately. See [testing](docs/testing.md) for commands. Coverage percentages are not configured yet.
 
 | Path                       | Purpose                                                          |
 | -------------------------- | ---------------------------------------------------------------- |

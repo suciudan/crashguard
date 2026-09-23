@@ -1,0 +1,96 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    if: github.repository == 'suciudan/crashguard' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.reference.outputs.image }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validate public URL
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          node -e 'const value = process.env.PRODUCTION_URL; const url = new URL(value); if (url.protocol !== "https:" || url.origin !== value) throw new Error("Set the repository variable PRODUCTION_URL to an HTTPS origin without a trailing slash")'
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/suciudan/crashguard:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/suciudan/crashguard
+          build-args: NEXT_PUBLIC_APP_URL=${{ vars.PRODUCTION_URL }}
+      - name: Export immutable image reference
+        id: reference
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: echo "image=ghcr.io/suciudan/crashguard@$DIGEST" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: image
+    # Configure the environment's required reviewer and main-only branch policy
+    # in GitHub before registering this runner. Labels alone do not restrict PRs.
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    runs-on: [self-hosted, linux, x64, prod]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      CRASHGUARD_IMAGE: ${{ needs.image.outputs.image }}
+      NEXT_PUBLIC_APP_URL: ${{ vars.PRODUCTION_URL }}
+      CRASHGUARD_NATIVE: ${{ vars.CRASHGUARD_NATIVE || '0' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Sign in to the container registry
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/crashguard-docker-${{ github.run_id }}-${{ github.run_attempt }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          install -d -m 700 "$DOCKER_CONFIG"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+      - name: Back up SQLite and deploy
+        run: bash scripts/deploy.sh
+      - name: Remove registry credentials
+        if: always() && env.DOCKER_CONFIG != ''
+        run: |
+          docker logout ghcr.io || true
+          rm -f -- "$DOCKER_CONFIG/config.json"
+          rmdir -- "$DOCKER_CONFIG" || true

@@ -6,11 +6,13 @@
 
 ```bash
 npm test
+python3 -B -m unittest discover -s tests -p 'test_deploy.py' -v
+npx next typegen
 npm run typecheck
 npm run build
 ```
 
-`npm test` uses temporary databases to verify authentication, ingestion, validation, grouping, telemetry, source maps, and webhook delivery. It does not need a running server. Coverage reporting, thresholds, and CI are not configured.
+`npm test` uses temporary databases to verify authentication, ingestion, validation, grouping, telemetry, source maps, and webhook delivery. It does not need a running server. Deployment tests use temporary SQLite databases and a simulated Docker command to verify backup and failure handling. GitHub Actions runs these checks on hosted runners for pull requests and before production image builds. Coverage reporting and thresholds are not configured.
 
 ## SDK and browser tests
 
