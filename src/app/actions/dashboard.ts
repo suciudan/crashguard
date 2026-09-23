@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createProject, dashboard, issueDetail, setStatus } from "@/lib/db";
 import { ActionError, runAction } from "@/lib/action-guard";
 import { symbolicateEvent } from "@/lib/sourcemaps";
+import { sidebarSections } from "@/lib/telemetry";
 
 export async function getDashboard(filters: Record<string, string>) {
   return runAction(() => {
@@ -11,7 +12,10 @@ export async function getDashboard(filters: Record<string, string>) {
       .safeParse(filters);
     if (!parsed.success || Object.keys(parsed.data).length > 12)
       throw new ActionError("Invalid dashboard filters.");
-    return dashboard(new URLSearchParams(parsed.data));
+    return {
+      ...dashboard(new URLSearchParams(parsed.data)),
+      sections: sidebarSections(),
+    };
   });
 }
 export async function addProject(input: { name: string; platform: string }) {

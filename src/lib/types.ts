@@ -87,7 +87,22 @@ export type StoredEvent = {
   release: string;
   payload: SentryEvent;
 };
+export const optionalSections = [
+  "transactions",
+  "logs",
+  "replays",
+  "profiles",
+  "attachments",
+  "releases",
+  "sourcemaps",
+  "alerts",
+] as const;
+export type SidebarSections = Record<
+  (typeof optionalSections)[number],
+  boolean
+>;
 export type DashboardData = {
+  sections: SidebarSections;
   projects: Project[];
   issues: Issue[];
   total: number;

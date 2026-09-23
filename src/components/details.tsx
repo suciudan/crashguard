@@ -370,6 +370,33 @@ export function Setup({
             </button>
           </div>
         </div>
+        <details className="telemetry-card operation-form">
+          <summary>Additional tools</summary>
+          <div className="page-actions">
+            {[
+              ["releases", "Releases"],
+              ["sourcemaps", "Source maps"],
+              ["alerts", "Alerts"],
+            ].map(([view, title]) => (
+              <AppLink
+                key={view}
+                className="button"
+                href={href({
+                  view,
+                  project: project.id,
+                  issue: null,
+                  event: null,
+                  tab: null,
+                  record: null,
+                  offset: null,
+                  q: null,
+                })}
+              >
+                {title}
+              </AppLink>
+            ))}
+          </div>
+        </details>
       </section>
     </div>
   );

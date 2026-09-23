@@ -24,10 +24,13 @@ Install Docker Engine with Compose v2.20+ (or v5), Python 3, Git, and `flock` (U
 
 ```bash
 sudo install -d -m 750 -o "$(id -u)" -g "$(id -g)" /opt/crashguard
-install -d -m 750 /opt/crashguard/data
-id -u  # Use this for the CRASHGUARD_UID Environment secret.
-id -g  # Use this for the CRASHGUARD_GID Environment secret.
+# These must match the container UID/GID Environment secrets (default: 1000).
+sudo install -d -m 750 -o 1000 -g 1000 /opt/crashguard/data
 ```
+
+The data directory belongs to the **container user**, even if the runner runs as root. Do not use root's `id -u`/`id -g` for the container. If the dedicated runner uses another non-root UID/GID, use those IDs for the data directory and set matching `CRASHGUARD_UID`/`CRASHGUARD_GID` Environment secrets; the runner also needs access for backups. Deployment checks container write access before replacing the app.
+
+If the first deployment fails because the data directory was created as root, follow [SQLite permission recovery](#sqlite-permission-recovery).
 
 The deployment always mounts `/opt/crashguard/data` into the container. SQLite, its WAL, passkeys, and attachments survive runner checkout cleanup and container replacement. Backups go to `/opt/crashguard/backups`; copy them off-host and set a retention policy appropriate to your storage.
 
@@ -72,3 +75,23 @@ docker compose -p crashguard-production -f /opt/crashguard/compose.yaml up -d --
 ```
 
 If restoring a backup is necessary, stop the app first, preserve the current database and its `-wal`/`-shm` files elsewhere, and restore the snapshot with matching ownership. Pair it with the Compose configuration saved in the same backup directory. Restoring loses writes after that snapshot; consult [storage operations](operations.md#deployment-and-storage). Avoid automatic image pruning if you need old images available for recovery.
+
+### SQLite permission recovery
+
+If the container is unhealthy and logs show `SQLITE_CANTOPEN: unable to open database file`, inspect the container and directory ownership **on the production VPS**:
+
+```bash
+sudo docker logs --tail 100 crashguard-production-crashguard-1
+sudo stat -c '%u:%g %a %n' /opt/crashguard/data
+```
+
+A root-owned directory (`0:0`, mode `750`) blocks the default container user (`1000:1000`). For this first-install case, run **on the VPS**:
+
+```bash
+sudo chown 1000:1000 /opt/crashguard/data
+sudo docker restart crashguard-production-crashguard-1
+curl --fail --retry 6 --retry-connrefused --retry-delay 2 \
+  http://127.0.0.1:5000/api/health
+```
+
+Expect `{"ok":true}`, then **re-run the failed GitHub Actions job** to finish deployment and save the successful configuration. Use your configured `CRASHGUARD_UID`, `CRASHGUARD_GID`, and `CRASHGUARD_PORT` if they differ from these defaults. Existing SQLite, WAL, and SHM files must also be readable and writable by the container user; changing only the directory owner does not change file ownership.

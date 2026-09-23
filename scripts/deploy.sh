@@ -60,6 +60,25 @@ chmod 600 "$candidate"
 "${compose[@]}" config > "$candidate"
 docker compose --project-name crashguard-production -f "$candidate" pull
 
+# Check the bind mount as the actual container user, before replacing the app.
+# Root running the deployment does not imply the app can write to this directory.
+docker compose --project-name crashguard-production -f "$candidate" run --rm --no-deps -T --entrypoint node crashguard -e '
+const fs = require("node:fs");
+const path = require("node:path");
+try {
+  const dir = "/app/data";
+  const probe = fs.mkdtempSync(path.join(dir, ".write-check-"));
+  fs.rmdirSync(probe);
+  for (const name of ["crashguard.sqlite", "crashguard.sqlite-wal", "crashguard.sqlite-shm"]) {
+    const file = path.join(dir, name);
+    if (fs.existsSync(file)) fs.accessSync(file, fs.constants.R_OK | fs.constants.W_OK);
+  }
+} catch {
+  console.error("The container cannot write to its SQLite data directory or files. Match host data ownership and permissions to CRASHGUARD_UID/CRASHGUARD_GID before retrying.");
+  process.exit(1);
+}
+'
+
 backup_dir="$root/backups/$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -p -- "$backup_dir"
 if [[ -f "$root/compose.yaml" ]]; then
