@@ -18,6 +18,7 @@ import {
   FolderKanban,
   Globe2,
   Layers3,
+  LayoutDashboard,
   Loader2,
   Plus,
   RefreshCw,
@@ -28,7 +29,12 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { DashboardData, Project } from "@/lib/types";
+import {
+  optionalSections,
+  type DashboardData,
+  type Project,
+  type SidebarSections,
+} from "@/lib/types";
 import { IssuePanel, ProjectModal, Setup } from "./details";
 import { action, Platform, relative } from "./shared";
 import Logo from "./logo";
@@ -40,6 +46,7 @@ import { Operations } from "./operations";
 export default function Dashboard() {
   const { params, href, update } = useAppNavigation();
   const view = [
+    "dashboard",
     "issues",
     "projects",
     "setup",
@@ -140,6 +147,7 @@ export default function Dashboard() {
     ? data?.projects.find((p) => p.id === setupId)
     : data?.projects[0];
   const titles: Record<string, string> = {
+    dashboard: "Dashboard",
     issues: "Issues",
     projects: "Projects",
     setup: "Connect your app",
@@ -150,6 +158,10 @@ export default function Dashboard() {
       Object.entries(telemetryViews).map(([key, value]) => [key, value.title]),
     ),
   };
+  const sectionIsVisible = (key: string) =>
+    key === view ||
+    !optionalSections.some((section) => section === key) ||
+    data?.sections[key as keyof SidebarSections] === true;
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -159,6 +171,21 @@ export default function Dashboard() {
 
         <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
+          <AppLink
+            className={view === "dashboard" ? "active" : ""}
+            href={href({
+              view: "dashboard",
+              issue: null,
+              event: null,
+              tab: null,
+              record: null,
+              offset: null,
+              q: null,
+            })}
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </AppLink>
           <AppLink
             className={view === "issues" ? "active" : ""}
             href={href({ view: "issues", issue: null, event: null, tab: null })}
@@ -181,48 +208,52 @@ export default function Dashboard() {
             <FolderKanban size={18} />
             Projects
           </AppLink>
-          {Object.entries(telemetryViews).map(([key, value]) => (
-            <AppLink
-              key={key}
-              className={view === key ? "active" : ""}
-              href={href({
-                view: key,
-                issue: null,
-                event: null,
-                tab: null,
-                record: null,
-                offset: null,
-                q: null,
-                trace: null,
-                relatedEvent: null,
-              })}
-            >
-              <Activity size={18} />
-              {value.title}
-            </AppLink>
-          ))}
+          {Object.entries(telemetryViews)
+            .filter(([key]) => sectionIsVisible(key))
+            .map(([key, value]) => (
+              <AppLink
+                key={key}
+                className={view === key ? "active" : ""}
+                href={href({
+                  view: key,
+                  issue: null,
+                  event: null,
+                  tab: null,
+                  record: null,
+                  offset: null,
+                  q: null,
+                  trace: null,
+                  relatedEvent: null,
+                })}
+              >
+                <Activity size={18} />
+                {value.title}
+              </AppLink>
+            ))}
           {[
             ["releases", "Releases"],
             ["sourcemaps", "Source maps"],
             ["alerts", "Alerts"],
-          ].map(([key, label]) => (
-            <AppLink
-              key={key}
-              className={view === key ? "active" : ""}
-              href={href({
-                view: key,
-                issue: null,
-                event: null,
-                tab: null,
-                record: null,
-                offset: null,
-                q: null,
-              })}
-            >
-              <Box size={18} />
-              {label}
-            </AppLink>
-          ))}
+          ]
+            .filter(([key]) => sectionIsVisible(key))
+            .map(([key, label]) => (
+              <AppLink
+                key={key}
+                className={view === key ? "active" : ""}
+                href={href({
+                  view: key,
+                  issue: null,
+                  event: null,
+                  tab: null,
+                  record: null,
+                  offset: null,
+                  q: null,
+                })}
+              >
+                <Box size={18} />
+                {label}
+              </AppLink>
+            ))}
           <AppLink
             className={view === "setup" ? "active" : ""}
             href={href({
@@ -256,11 +287,13 @@ export default function Dashboard() {
             })
           }
         >
-          {Object.entries(titles).map(([key, title]) => (
-            <option key={key} value={key}>
-              {title}
-            </option>
-          ))}
+          {Object.entries(titles)
+            .filter(([key]) => sectionIsVisible(key))
+            .map(([key, title]) => (
+              <option key={key} value={key}>
+                {title}
+              </option>
+            ))}
         </select>
         <div className="sidebar-bottom">
           <div className="lightweight-card">
@@ -342,7 +375,7 @@ export default function Dashboard() {
               Loading your workspace…
             </div>
           )}
-          {data && view === "issues" && (
+          {data && (view === "dashboard" || view === "issues") && (
             <>
               {release && (
                 <p className="telemetry-filter">
@@ -413,232 +446,232 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-              <section className="overview" aria-label="Event overview">
-                <div className="metrics">
-                  <Metric
-                    label="Total events"
-                    value={data.stats.events}
-                    icon={<Activity size={17} />}
-                    caption="Errors and messages received"
-                  />
-                  <Metric
-                    label="Active issues"
-                    value={data.stats.active}
-                    icon={<CircleAlert size={17} />}
-                    caption="Unique issues to investigate"
-                  />
-                  <Metric
-                    label="Affected users"
-                    value={data.stats.users}
-                    icon={<Users size={17} />}
-                    caption="Identified users in this period"
-                  />
-                  <Metric
-                    label="Resolved issues"
-                    value={data.stats.resolved}
-                    icon={<CheckCheck size={17} />}
-                    caption="A little less on your plate"
-                  />
-                </div>
-                <ActivityChart data={data} hours={Number(hours)} />
-              </section>
-              <section className="issue-section">
-                <div className="issue-tabs">
-                  <div
-                    className="tabs"
-                    role="tablist"
-                    aria-label="Issue status"
-                  >
-                    {[
-                      ["unresolved", "Unresolved"],
-                      ["resolved", "Resolved"],
-                      ["ignored", "Ignored"],
-                      ["all", "All issues"],
-                    ].map(([value, label]) => (
-                      <button
-                        role="tab"
-                        aria-selected={status === value}
-                        className={status === value ? "selected" : ""}
-                        key={value}
-                        onClick={() => filter("status", value)}
-                      >
-                        {label}
-                        {status === value && <span>{data.total}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="issue-toolbar">
-                  <label className="search">
-                    <Search size={17} />
-                    <input
-                      placeholder="Search issues, messages, or projects…"
-                      aria-label="Search issues"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                    {query && (
-                      <button
-                        aria-label="Clear search"
-                        onClick={() => setQuery("")}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </label>
-                  <label className="sort">
-                    <SlidersHorizontal size={15} />
-                    <select
-                      aria-label="Sort issues"
-                      value={sort}
-                      onChange={(e) => filter("sort", e.target.value)}
-                    >
-                      <option value="recent">Last seen</option>
-                      <option value="frequency">Most frequent</option>
-                    </select>
-                    <ChevronDown size={13} />
-                  </label>
-                </div>
-                {data.issues.length > 0 ? (
-                  <>
-                    <div className="table-scroll">
-                      <table className="issues-table">
-                        <thead>
-                          <tr>
-                            <th className="issue-column">Issue</th>
-                            <th>Source</th>
-                            <th>Events</th>
-                            <th>Users</th>
-                            <th>
-                              Last seen <ArrowDown size={12} />
-                            </th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.issues.map((issue) => (
-                            <tr
-                              key={issue.id}
-                              onClick={() =>
-                                update({
-                                  issue: issue.id,
-                                  event: null,
-                                  tab: null,
-                                })
-                              }
-                            >
-                              <td>
-                                <div className="issue-title-line">
-                                  <span className={`severity ${issue.level}`}>
-                                    <CircleAlert size={15} />
-                                  </span>
-                                  <AppLink
-                                    className="issue-title"
-                                    href={issueHref(issue.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {issue.title}
-                                  </AppLink>
-                                </div>
-                                <div className="issue-meta">
-                                  <span>CG-{issue.id}</span>
-                                  <span className="meta-dot">·</span>
-                                  <span className="truncate">
-                                    {issue.culprit || "No location reported"}
-                                  </span>
-                                  <span className={`level-text ${issue.level}`}>
-                                    {issue.level}
-                                  </span>
-                                </div>
-                              </td>
-                              <td>
-                                <div className="source-cell">
-                                  <Platform platform={issue.platform} small />
-                                  <span>{issue.project_name}</span>
-                                </div>
-                                <div className="environment-label">
-                                  {issue.environment}
-                                </div>
-                              </td>
-                              <td className="number-cell">
-                                {issue.event_count.toLocaleString()}
-                              </td>
-                              <td className="number-cell">
-                                {issue.user_count || "—"}
-                              </td>
-                              <td className="last-seen">
-                                {relative(issue.last_seen)}
-                              </td>
-                              <td>
-                                <ChevronRight size={15} className="subtle" />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="table-footer">
-                      <span>
-                        Showing {offset + 1}–{Math.min(offset + 30, data.total)}{" "}
-                        of {data.total} issues
-                      </span>
-                      <div>
-                        <button
-                          className="icon-button"
-                          disabled={!offset}
-                          onClick={() =>
-                            update({ offset: Math.max(0, offset - 30) })
-                          }
-                          aria-label="Previous page"
-                        >
-                          <ChevronLeft size={15} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          disabled={offset + 30 >= data.total}
-                          onClick={() => update({ offset: offset + 30 })}
-                          aria-label="Next page"
-                        >
-                          <ChevronRight size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="empty-state">
-                    <div className="empty-symbol">
-                      <ShieldCheck size={30} />
-                      <span className="empty-dot" />
-                    </div>
-                    <h2>
-                      {!data.projects.length
-                        ? "Your next bug won’t go unnoticed."
-                        : search || status !== "unresolved" || data.stats.events
-                          ? "No issues match this view."
-                          : "Ready when your app is."}
-                    </h2>
-                    <p>
-                      {!data.projects.length
-                        ? "Connect an app with a Sentry SDK and give your errors a home.\nFrom the first exception to the fix, it all starts here."
-                        : "Events will appear here as they arrive. Connect your SDK,\nsend a test event, or adjust your filters."}
-                    </p>
-                    <div className="empty-actions">
-                      <button
-                        className="button primary"
-                        onClick={() =>
-                          data.projects.length ? connect() : setModal(true)
-                        }
-                      >
-                        <Plus size={15} />
-                        {data.projects.length
-                          ? "Connect SDK"
-                          : "Connect your first app"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </section>
             </>
+          )}
+          {data && view === "dashboard" && (
+            <section className="overview" aria-label="Event overview">
+              <div className="metrics">
+                <Metric
+                  label="Total events"
+                  value={data.stats.events}
+                  icon={<Activity size={17} />}
+                  caption="Errors and messages received"
+                />
+                <Metric
+                  label="Active issues"
+                  value={data.stats.active}
+                  icon={<CircleAlert size={17} />}
+                  caption="Unique issues to investigate"
+                />
+                <Metric
+                  label="Affected users"
+                  value={data.stats.users}
+                  icon={<Users size={17} />}
+                  caption="Identified users in this period"
+                />
+                <Metric
+                  label="Resolved issues"
+                  value={data.stats.resolved}
+                  icon={<CheckCheck size={17} />}
+                  caption="A little less on your plate"
+                />
+              </div>
+              <ActivityChart data={data} hours={Number(hours)} />
+            </section>
+          )}
+          {data && view === "issues" && (
+            <section className="issue-section">
+              <div className="issue-tabs">
+                <div className="tabs" role="tablist" aria-label="Issue status">
+                  {[
+                    ["unresolved", "Unresolved"],
+                    ["resolved", "Resolved"],
+                    ["ignored", "Ignored"],
+                    ["all", "All issues"],
+                  ].map(([value, label]) => (
+                    <button
+                      role="tab"
+                      aria-selected={status === value}
+                      className={status === value ? "selected" : ""}
+                      key={value}
+                      onClick={() => filter("status", value)}
+                    >
+                      {label}
+                      {status === value && <span>{data.total}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="issue-toolbar">
+                <label className="search">
+                  <Search size={17} />
+                  <input
+                    placeholder="Search issues, messages, or projects…"
+                    aria-label="Search issues"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                  {query && (
+                    <button
+                      aria-label="Clear search"
+                      onClick={() => setQuery("")}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </label>
+                <label className="sort">
+                  <SlidersHorizontal size={15} />
+                  <select
+                    aria-label="Sort issues"
+                    value={sort}
+                    onChange={(e) => filter("sort", e.target.value)}
+                  >
+                    <option value="recent">Last seen</option>
+                    <option value="frequency">Most frequent</option>
+                  </select>
+                  <ChevronDown size={13} />
+                </label>
+              </div>
+              {data.issues.length > 0 ? (
+                <>
+                  <div className="table-scroll">
+                    <table className="issues-table">
+                      <thead>
+                        <tr>
+                          <th className="issue-column">Issue</th>
+                          <th>Source</th>
+                          <th>Events</th>
+                          <th>Users</th>
+                          <th>
+                            Last seen <ArrowDown size={12} />
+                          </th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.issues.map((issue) => (
+                          <tr
+                            key={issue.id}
+                            onClick={() =>
+                              update({
+                                issue: issue.id,
+                                event: null,
+                                tab: null,
+                              })
+                            }
+                          >
+                            <td>
+                              <div className="issue-title-line">
+                                <span className={`severity ${issue.level}`}>
+                                  <CircleAlert size={15} />
+                                </span>
+                                <AppLink
+                                  className="issue-title"
+                                  href={issueHref(issue.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {issue.title}
+                                </AppLink>
+                              </div>
+                              <div className="issue-meta">
+                                <span>CG-{issue.id}</span>
+                                <span className="meta-dot">·</span>
+                                <span className="truncate">
+                                  {issue.culprit || "No location reported"}
+                                </span>
+                                <span className={`level-text ${issue.level}`}>
+                                  {issue.level}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="source-cell">
+                                <Platform platform={issue.platform} small />
+                                <span>{issue.project_name}</span>
+                              </div>
+                              <div className="environment-label">
+                                {issue.environment}
+                              </div>
+                            </td>
+                            <td className="number-cell">
+                              {issue.event_count.toLocaleString()}
+                            </td>
+                            <td className="number-cell">
+                              {issue.user_count || "—"}
+                            </td>
+                            <td className="last-seen">
+                              {relative(issue.last_seen)}
+                            </td>
+                            <td>
+                              <ChevronRight size={15} className="subtle" />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="table-footer">
+                    <span>
+                      Showing {offset + 1}–{Math.min(offset + 30, data.total)}{" "}
+                      of {data.total} issues
+                    </span>
+                    <div>
+                      <button
+                        className="icon-button"
+                        disabled={!offset}
+                        onClick={() =>
+                          update({ offset: Math.max(0, offset - 30) })
+                        }
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        disabled={offset + 30 >= data.total}
+                        onClick={() => update({ offset: offset + 30 })}
+                        aria-label="Next page"
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-symbol">
+                    <ShieldCheck size={30} />
+                    <span className="empty-dot" />
+                  </div>
+                  <h2>
+                    {!data.projects.length
+                      ? "Your next bug won’t go unnoticed."
+                      : search || status !== "unresolved" || data.stats.events
+                        ? "No issues match this view."
+                        : "Ready when your app is."}
+                  </h2>
+                  <p>
+                    {!data.projects.length
+                      ? "Connect an app with a Sentry SDK and give your errors a home.\nFrom the first exception to the fix, it all starts here."
+                      : "Events will appear here as they arrive. Connect your SDK,\nsend a test event, or adjust your filters."}
+                  </p>
+                  <div className="empty-actions">
+                    <button
+                      className="button primary"
+                      onClick={() =>
+                        data.projects.length ? connect() : setModal(true)
+                      }
+                    >
+                      <Plus size={15} />
+                      {data.projects.length
+                        ? "Connect SDK"
+                        : "Connect your first app"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
           )}
           {data && telemetryViews[view] && (
             <Telemetry key={view} view={view} projects={data.projects} />

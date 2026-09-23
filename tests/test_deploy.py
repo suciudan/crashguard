@@ -37,6 +37,8 @@ if os.environ.get('FAIL_PULL') and args[-1] == 'pull':
     sys.exit(1)
 if os.environ.get('FAIL_HEALTH') and 'up' in args:
     sys.exit(1)
+if os.environ.get('FAIL_STORAGE') and 'run' in args:
+    sys.exit(1)
 ''')
         docker.chmod(0o700)
         self.env = {
@@ -97,6 +99,15 @@ if os.environ.get('FAIL_HEALTH') and 'up' in args:
         result = self.run_deploy()
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn(' up ', self.calls())
+
+    def test_unwritable_storage_prevents_container_replacement(self):
+        (self.root / 'compose.yaml').write_text('previous')
+        result = self.run_deploy(FAIL_STORAGE='1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('--entrypoint node crashguard', self.calls())
+        self.assertNotIn(' up ', self.calls())
+        self.assertFalse((self.root / 'backups').exists())
+        self.assertEqual((self.root / 'compose.yaml').read_text(), 'previous')
 
     def test_health_failure_preserves_previous_state(self):
         (self.root / 'compose.yaml').write_text('previous')

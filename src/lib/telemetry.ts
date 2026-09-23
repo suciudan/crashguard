@@ -3,7 +3,7 @@ import { inflateSync } from "node:zlib";
 import { z } from "zod";
 import { db, saveEvents } from "./db";
 import { scrub, validateEvent } from "./events";
-import type { SentryEvent } from "./types";
+import type { SentryEvent, SidebarSections } from "./types";
 
 export type Item = {
   type: string;
@@ -50,6 +50,7 @@ export function telemetryDb() {
       duration REAL NOT NULL DEFAULT 0, size INTEGER NOT NULL, metadata TEXT NOT NULL,
       payload TEXT NOT NULL, binary BLOB, UNIQUE(project_id, kind, external_id));
     CREATE INDEX IF NOT EXISTS telemetry_filter ON telemetry(project_id, kind, received_at);
+    CREATE INDEX IF NOT EXISTS telemetry_kind ON telemetry(kind);
     CREATE INDEX IF NOT EXISTS telemetry_event ON telemetry(project_id, event_id);
     CREATE INDEX IF NOT EXISTS telemetry_trace ON telemetry(project_id, trace_id);
     CREATE TABLE IF NOT EXISTS releases (
@@ -72,6 +73,26 @@ export function telemetryDb() {
   `);
   initialized.add(sql);
   return sql;
+}
+export function sidebarSections(): SidebarSections {
+  // Workspace navigation is independent of issue filters and time ranges.
+  const row = telemetryDb()
+    .prepare(
+      `SELECT
+    EXISTS(SELECT 1 FROM telemetry WHERE kind = 'transaction') AS transactions,
+    EXISTS(SELECT 1 FROM telemetry WHERE kind = 'log') AS logs,
+    EXISTS(SELECT 1 FROM telemetry WHERE kind IN ('replay_event', 'replay_recording')) AS replays,
+    EXISTS(SELECT 1 FROM telemetry WHERE kind IN ('profile', 'profile_chunk')) AS profiles,
+    EXISTS(SELECT 1 FROM telemetry WHERE kind = 'attachment') AS attachments,
+    EXISTS(SELECT 1 FROM releases) AS releases,
+    EXISTS(SELECT 1 FROM source_maps) AS sourcemaps,
+    EXISTS(SELECT 1 FROM alert_rules) AS alerts
+  `,
+    )
+    .get() as Record<keyof SidebarSections, number>;
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [key, Boolean(value)]),
+  ) as SidebarSections;
 }
 const object = z.record(z.string(), z.unknown());
 const hex = z.string().regex(/^[a-f0-9]{32}$/i);

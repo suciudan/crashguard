@@ -120,7 +120,9 @@ export function saveEvents(projectId: number, inputs: SentryEvent[]) {
     }),
   )();
 }
-export function dashboard(params: URLSearchParams): DashboardData {
+export function dashboard(
+  params: URLSearchParams,
+): Omit<DashboardData, "sections"> {
   const hours = [24, 168, 720].includes(Number(params.get("hours")))
     ? Number(params.get("hours"))
     : 24;

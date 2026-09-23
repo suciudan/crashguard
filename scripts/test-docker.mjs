@@ -74,6 +74,60 @@ try {
     .getByRole("button", { name: "Create passkey", exact: true })
     .click();
   await page.waitForURL(base + "/");
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  await expect(navigation.getByRole("link")).toHaveText([
+    "Dashboard",
+    "Issues",
+    "Projects",
+    "SDK setup",
+  ]);
+  await expect(
+    page.getByLabel("Navigate workspace").locator("option"),
+  ).toHaveText(["Dashboard", "Issues", "Projects", "Connect your app"]);
+  await expect(
+    page.getByRole("tablist", { name: "Issue status" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Event overview" }),
+  ).toHaveCount(0);
+  await navigation
+    .getByRole("link", { name: "Dashboard", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Dashboard", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Event overview" }),
+  ).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Issue status" })).toHaveCount(
+    0,
+  );
+  await page.getByLabel("Time range", { exact: true }).selectOption("168");
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "Event overview" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Time range", { exact: true })).toHaveValue(
+    "168",
+  );
+  await navigation.getByRole("link", { name: "Issues", exact: true }).click();
+  await expect(
+    page.getByRole("tablist", { name: "Issue status" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Time range", { exact: true })).toHaveValue(
+    "168",
+  );
+  await expect(
+    page.getByRole("region", { name: "Event overview" }),
+  ).toHaveCount(0);
+  await page.goBack();
+  await expect(
+    page.getByRole("region", { name: "Event overview" }),
+  ).toBeVisible();
+  await page.goForward();
+  await expect(
+    page.getByRole("tablist", { name: "Issue status" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "New project", exact: true }).click();
   await page.getByLabel("Project name").fill("Container persistence check");
   await page
@@ -86,9 +140,49 @@ try {
     "SELECT * FROM projects WHERE name = ?",
     "Container persistence check",
   );
-  await expect(page.locator("pre").filter({ hasText: "Sentry.init" })).toContainText(
-    `http://${app.public_key}@localhost:${port}/${app.id}`,
+  await expect(
+    page.locator("pre").filter({ hasText: "Sentry.init" }),
+  ).toContainText(`http://${app.public_key}@localhost:${port}/${app.id}`);
+  await page.getByText("Additional tools", { exact: true }).click();
+  await page.getByRole("link", { name: "Source maps", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Upload source map" }),
+  ).toBeVisible();
+  await navigation
+    .getByRole("link", { name: "SDK setup", exact: true })
+    .click();
+  await expect(
+    navigation.getByRole("link", { name: "Source maps", exact: true }),
+  ).toHaveCount(0);
+  const logResponse = await fetch(
+    `${base}/api/${app.id}/envelope/?sentry_key=${app.public_key}`,
+    {
+      method: "POST",
+      body:
+        '{}\n{"type":"log"}\n' +
+        JSON.stringify({
+          version: 2,
+          items: [
+            {
+              timestamp: Date.now() / 1000,
+              level: "info",
+              body: "Sidebar discovery",
+            },
+          ],
+        }) +
+        "\n",
+    },
   );
+  assert.equal(logResponse.status, 200);
+  await expect(
+    navigation.getByRole("link", { name: "Logs", exact: true }),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(
+    page.getByLabel("Navigate workspace").locator('option[value="logs"]'),
+  ).toHaveCount(1);
+  await expect(
+    navigation.getByRole("link", { name: "Performance", exact: true }),
+  ).toHaveCount(0);
   const eventId = randomBytes(16).toString("hex");
   const event = {
     event_id: eventId,
