@@ -1,7 +1,6 @@
 "use client";
 import { useSearchParams } from "next/navigation";
 import type { ComponentProps } from "react";
-import { Link2 } from "lucide-react";
 
 type Changes = Record<string, string | number | null>;
 export function appHref(current: string, changes: Changes) {
@@ -51,36 +50,5 @@ export function AppLink({
         navigate(href);
       }}
     />
-  );
-}
-export function CopyLink({
-  href,
-  notify,
-  label = "Copy link",
-}: {
-  href?: string;
-  notify: (message: string) => void;
-  label?: string;
-}) {
-  const { params } = useAppNavigation();
-  return (
-    <button
-      className="button"
-      onClick={async () => {
-        const url = new URL(
-          href || appHref(params.toString(), {}),
-          window.location.origin,
-        ).href;
-        try {
-          await navigator.clipboard.writeText(url);
-          notify("Link copied to clipboard");
-        } catch {
-          window.prompt("Copy this link", url);
-        }
-      }}
-    >
-      <Link2 size={16} />
-      {label}
-    </button>
   );
 }

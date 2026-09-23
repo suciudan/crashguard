@@ -8,7 +8,6 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1080 },
-    permissions: ["clipboard-read", "clipboard-write"],
     storageState: process.env.TEST_STORAGE_STATE,
   });
   const page = await context.newPage();
@@ -63,11 +62,7 @@ async function main() {
     await expect(page.locator(".panel-content pre")).toContainText(ids[54]);
     await page.getByLabel("Event occurrence").selectOption(ids[53]);
     await expect(page.locator(".panel-content pre")).toContainText(ids[53]);
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Copy link", exact: true })
-      .click();
-    const sharedUrl = await page.evaluate(() => navigator.clipboard.readText());
+    const sharedUrl = page.url();
     expect(new URL(sharedUrl).searchParams.get("event")).toBe(ids[53]);
     expect(new URL(sharedUrl).searchParams.get("tab")).toBe("raw");
     const colleague = await context.newPage();
@@ -146,10 +141,7 @@ async function main() {
       "Shareable & detail",
     );
     await page.goto(listUrl);
-    await page.getByRole("button", { name: "Copy link", exact: true }).click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      listUrl,
-    );
+    expect(page.url()).toBe(listUrl);
     await page.setViewportSize({ width: 390, height: 844 });
     mkdirSync("test-results", { recursive: true });
     await page.screenshot({
@@ -169,7 +161,7 @@ async function main() {
     });
     expect(errors).toEqual([]);
     console.log(
-      "PASS: shared issue/occurrence links, older events, authentication, reload, history, missing links, filters/pagination, SDK links, new tabs, clipboard, and mobile layout.",
+      "PASS: address-bar issue/occurrence links, older events, authentication, reload, history, missing links, filters/pagination, SDK links, new tabs, and mobile layout.",
     );
   } finally {
     await browser.close();
