@@ -19,7 +19,6 @@ class DeploymentTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / 'data').mkdir()
-        (self.root / '.env.production').write_text('')
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         docker = self.bin / 'docker'
@@ -32,7 +31,9 @@ with open(os.environ['DOCKER_CALLS'], 'a') as log:
     log.write(' '.join(args) + '\\n')
 if args[-1] == 'config':
     print('services: {crashguard: {image: candidate}}')
+    print('# ' + os.environ['APP_URL'])
 if os.environ.get('FAIL_PULL') and args[-1] == 'pull':
+    print('Cannot connect to ' + os.environ['APP_URL'], file=sys.stderr)
     sys.exit(1)
 if os.environ.get('FAIL_HEALTH') and 'up' in args:
     sys.exit(1)
@@ -43,7 +44,7 @@ if os.environ.get('FAIL_HEALTH') and 'up' in args:
             'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
             'CRASHGUARD_DEPLOY_DIR': str(self.root),
             'CRASHGUARD_IMAGE': IMAGE,
-            'NEXT_PUBLIC_APP_URL': 'https://crashguard.example.com',
+            'APP_URL': 'https://private-config.example.com',
             'DOCKER_CALLS': str(self.root / 'docker.log'),
             'CRASHGUARD_NATIVE': '0',
         }
@@ -61,7 +62,7 @@ if os.environ.get('FAIL_HEALTH') and 'up' in args:
     def test_first_deployment(self):
         result = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('First deployment', result.stdout)
+        self.assertIn('First deployment', (self.root / 'deploy.log').read_text())
         self.assertEqual((self.root / 'current-image').read_text().strip(), IMAGE)
         self.assertTrue((self.root / 'compose.yaml').exists())
         self.assertFalse((self.root / 'compose.candidate.yaml').exists())
@@ -102,7 +103,7 @@ if os.environ.get('FAIL_HEALTH') and 'up' in args:
         (self.root / 'current-image').write_text('previous image')
         result = self.run_deploy(FAIL_HEALTH='1')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Deployment failed', result.stderr)
+        self.assertIn('Deployment failed', result.stdout + result.stderr)
         self.assertEqual((self.root / 'compose.yaml').read_text(), 'previous')
         self.assertEqual((self.root / 'current-image').read_text(), 'previous image')
         self.assertTrue((self.root / 'compose.candidate.yaml').exists())
@@ -124,6 +125,29 @@ if os.environ.get('FAIL_HEALTH') and 'up' in args:
         result = self.run_deploy(CRASHGUARD_NATIVE='1')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('compose.native.yaml', self.calls())
+
+    def test_configuration_never_reaches_public_output(self):
+        for failure in ('', 'FAIL_PULL', 'FAIL_HEALTH'):
+            with self.subTest(failure=failure):
+                result = self.run_deploy(**({failure: '1'} if failure else {}))
+                self.assertNotIn(self.env['APP_URL'], result.stdout + result.stderr)
+                self.assertNotIn('private-config', result.stdout + result.stderr)
+        self.assertEqual((self.root / 'deploy.log').stat().st_mode & 0o777, 0o600)
+        self.assertEqual((self.root / 'compose.yaml').stat().st_mode & 0o777, 0o600)
+        self.assertEqual((self.root / 'compose.candidate.yaml').stat().st_mode & 0o777, 0o600)
+
+    def test_invalid_origin_is_rejected_without_echoing_it(self):
+        value = 'https://private-config.example.com:confidential-invalid-port'
+        result = self.run_deploy(APP_URL=value)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), '')
+        self.assertNotIn('confidential-invalid-port', result.stdout + result.stderr)
+        self.assertNotIn('confidential-invalid-port', (self.root / 'deploy.log').read_text())
+
+    def test_missing_origin_is_rejected_before_docker_runs(self):
+        result = self.run_deploy(APP_URL='')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls(), '')
 
 
 if __name__ == '__main__':

@@ -5,13 +5,13 @@ umask 077
 root="${CRASHGUARD_DEPLOY_DIR:-/opt/crashguard}"
 export CRASHGUARD_DEPLOY_DIR="$root"
 : "${CRASHGUARD_IMAGE:?Set the image digest to deploy}"
-: "${NEXT_PUBLIC_APP_URL:?Set the public HTTPS origin}"
+: "${APP_URL:?Set the PRODUCTION_URL Environment secret}"
 if [[ ! "$CRASHGUARD_IMAGE" =~ ^ghcr\.io/suciudan/crashguard@sha256:[a-f0-9]{64}$ ]]; then
   echo 'Deployment requires a CrashGuard image pinned by SHA-256 digest.' >&2
   exit 1
 fi
-if [[ "$root" != /* || ! -d "$root/data" || ! -f "$root/.env.production" ]]; then
-  echo 'Create the absolute deployment directory, data directory, and .env.production first.' >&2
+if [[ "$root" != /* || ! -d "$root/data" ]]; then
+  echo 'Create the absolute deployment directory and data directory first.' >&2
   exit 1
 fi
 command -v python3 >/dev/null
@@ -19,19 +19,51 @@ command -v flock >/dev/null
 exec 9>"$root/deploy.lock"
 flock -n 9 || { echo 'Another deployment is running.' >&2; exit 1; }
 
+# Tools can include configuration in their errors. Keep their output on the VPS,
+# including on failure; only fixed status messages go to public Actions logs.
+exec 3>&1
+touch "$root/deploy.log"
+chmod 600 "$root/deploy.log"
+exec >"$root/deploy.log" 2>&1
+trap 'status=$?; if (( status != 0 )); then echo "Deployment failed. Inspect deploy.log in the deployment directory on the VPS." >&3; fi' EXIT
+
+python3 - <<'PY'
+import os
+import sys
+from urllib.parse import urlsplit
+
+try:
+    value = os.environ['APP_URL']
+    url = urlsplit(value)
+    valid = (url.scheme == 'https' and url.hostname and not url.username
+             and not url.password and not url.path and not url.query
+             and not url.fragment and not any(c.isspace() for c in value))
+    if not valid:
+        raise ValueError()
+    url.port  # Reject malformed port numbers, without printing the input.
+except (KeyError, ValueError):
+    print('Set the PRODUCTION_URL Environment secret to an HTTPS origin without a trailing slash.', file=sys.stderr)
+    sys.exit(1)
+PY
+
 repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-compose=(docker compose --project-name crashguard-production --env-file "$root/.env.production" -f "$repo/compose.production.yaml")
+# Configuration comes from the approved job's Environment secrets, never a
+# repository .env file or a stale host override.
+compose=(docker compose --project-name crashguard-production --env-file /dev/null -f "$repo/compose.production.yaml")
 if [[ "${CRASHGUARD_NATIVE:-0}" == 1 ]]; then
   compose+=(-f "$repo/compose.native.yaml")
 fi
 # Save the resolved configuration outside the runner checkout for host operations.
 candidate="$root/compose.candidate.yaml"
+touch "$candidate"
+chmod 600 "$candidate"
 "${compose[@]}" config > "$candidate"
 docker compose --project-name crashguard-production -f "$candidate" pull
 
 backup_dir="$root/backups/$(date -u +%Y%m%dT%H%M%SZ)-$$"
 mkdir -p -- "$backup_dir"
 if [[ -f "$root/compose.yaml" ]]; then
+  chmod 600 "$root/compose.yaml"
   cp -- "$root/compose.yaml" "$backup_dir/compose.yaml"
 fi
 # The SQLite backup API includes committed WAL data and works with a live writer.
@@ -59,4 +91,4 @@ if ! docker compose --project-name crashguard-production -f "$candidate" up -d -
 fi
 mv -- "$candidate" "$root/compose.yaml"
 printf '%s\n' "$CRASHGUARD_IMAGE" > "$root/current-image"
-echo "Deployment healthy: $CRASHGUARD_IMAGE"
+echo 'Deployment healthy.' >&3

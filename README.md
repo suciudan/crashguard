@@ -94,19 +94,19 @@ Copy [.env.example](.env.example) to `.env.local`.
 | Variable              | Default / purpose                                                    |
 | --------------------- | -------------------------------------------------------------------- |
 | `DATABASE_PATH`       | `./data/crashguard.sqlite` for local runs                            |
-| `NEXT_PUBLIC_APP_URL` | Set your public URL; the example uses `http://localhost:5000`        |
+| `APP_URL`            | Server-only runtime origin; the example uses `http://localhost:5000` |
 | `AUTH_ORIGIN`         | Defaults to the public URL; used for passkeys and dashboard requests |
 | `INGEST_RATE_LIMIT`   | `120` requests per project per minute                                |
 | `CRASHGUARD_DATA_DIR` | `./data` — host storage directory for Docker                         |
 
-For production, use a stable HTTPS URL and set it **before building**:
+For production, set `APP_URL` to a stable HTTPS origin in the server's runtime environment:
 
 ```bash
 npm run build
 npm start
 ```
 
-Both local servers use port **5000**. The public URL is embedded at build time, so changing it requires a rebuild. Use persistent local storage; there is no automatic data retention.
+Both local servers use port **5000**. Production configuration is supplied at runtime and is not embedded in the image or browser bundle. The deployment workflow reads secrets from GitHub's `production` Environment. Use persistent local storage; there is no automatic data retention.
 
 The first passkey secures the shared workspace. Enroll it before exposing a fresh installation, and add backup keys under **Passkeys**. [Recovery and deployment details →](docs/operations.md)
 

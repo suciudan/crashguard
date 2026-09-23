@@ -9,7 +9,7 @@ export const hashToken = (token: string) =>
 export function authOrigin() {
   const url = new URL(
     process.env.AUTH_ORIGIN ||
-      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_URL ||
       "http://localhost:5000",
   );
   if (
