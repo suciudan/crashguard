@@ -21,7 +21,7 @@ const env = {
   CRASHGUARD_BIND_ADDRESS: "127.0.0.1",
   CRASHGUARD_UID: String(process.getuid()),
   CRASHGUARD_GID: String(process.getgid()),
-  NEXT_PUBLIC_APP_URL: base,
+  APP_URL: base,
   AUTH_ORIGIN: base,
 };
 function compose(...args) {
@@ -85,6 +85,9 @@ try {
   const app = read(
     "SELECT * FROM projects WHERE name = ?",
     "Container persistence check",
+  );
+  await expect(page.locator("pre").filter({ hasText: "Sentry.init" })).toContainText(
+    `http://${app.public_key}@localhost:${port}/${app.id}`,
   );
   const eventId = randomBytes(16).toString("hex");
   const event = {

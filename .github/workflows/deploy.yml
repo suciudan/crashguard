@@ -37,11 +37,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Validate public URL
-        env:
-          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-        run: |
-          node -e 'const value = process.env.PRODUCTION_URL; const url = new URL(value); if (url.protocol !== "https:" || url.origin !== value) throw new Error("Set the repository variable PRODUCTION_URL to an HTTPS origin without a trailing slash")'
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -57,7 +52,6 @@ jobs:
           platforms: linux/amd64
           tags: ghcr.io/suciudan/crashguard:${{ github.sha }}
           labels: org.opencontainers.image.source=https://github.com/suciudan/crashguard
-          build-args: NEXT_PUBLIC_APP_URL=${{ vars.PRODUCTION_URL }}
       - name: Export immutable image reference
         id: reference
         env:
@@ -70,7 +64,6 @@ jobs:
     # in GitHub before registering this runner. Labels alone do not restrict PRs.
     environment:
       name: production
-      url: ${{ vars.PRODUCTION_URL }}
     runs-on: [self-hosted, linux, x64, prod]
     timeout-minutes: 15
     permissions:
@@ -78,8 +71,6 @@ jobs:
       packages: read
     env:
       CRASHGUARD_IMAGE: ${{ needs.image.outputs.image }}
-      NEXT_PUBLIC_APP_URL: ${{ vars.PRODUCTION_URL }}
-      CRASHGUARD_NATIVE: ${{ vars.CRASHGUARD_NATIVE || '0' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -95,6 +86,17 @@ jobs:
           install -d -m 700 "$DOCKER_CONFIG"
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
       - name: Back up SQLite and deploy
+        # Production values are available only to this approved runtime step.
+        # Keep them out of build arguments, job outputs, and deployment URLs.
+        env:
+          APP_URL: ${{ secrets.PRODUCTION_URL }}
+          CRASHGUARD_NATIVE: ${{ secrets.CRASHGUARD_NATIVE || '0' }}
+          CRASHGUARD_UID: ${{ secrets.CRASHGUARD_UID || '1000' }}
+          CRASHGUARD_GID: ${{ secrets.CRASHGUARD_GID || '1000' }}
+          CRASHGUARD_PORT: ${{ secrets.CRASHGUARD_PORT || '5000' }}
+          INGEST_RATE_LIMIT: ${{ secrets.INGEST_RATE_LIMIT || '120' }}
+          ALERT_WEBHOOK_HOSTS: ${{ secrets.ALERT_WEBHOOK_HOSTS }}
+          SYMBOLICATOR_SOURCES: ${{ secrets.SYMBOLICATOR_SOURCES || '[]' }}
         run: bash scripts/deploy.sh
       - name: Remove registry credentials
         if: always() && env.DOCKER_CONFIG != ''

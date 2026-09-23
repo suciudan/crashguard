@@ -9,9 +9,7 @@ RUN npm ci
 
 FROM dependencies AS build
 COPY . .
-ARG NEXT_PUBLIC_APP_URL=http://localhost:5000
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
-    NEXT_TELEMETRY_DISABLED=1 \
+ENV NEXT_TELEMETRY_DISABLED=1 \
     BUILD_STANDALONE=1
 RUN mkdir -p public && npm run build
 

@@ -20,7 +20,7 @@ Use a **fresh, disposable database**. The passkey test enrolls virtual credentia
 
 ```bash
 AUTH_ORIGIN=http://localhost:5001 \
-NEXT_PUBLIC_APP_URL=http://localhost:5001 \
+APP_URL=http://localhost:5001 \
 DATABASE_PATH=./test-results/integration.sqlite \
 npm run dev -- --port 5001
 ```
@@ -64,7 +64,7 @@ For `test:native`, also set `SYMBOLICATOR_URL` and `TEST_MINIDUMP_PATH`. A runni
 With Docker and Playwright Chromium installed:
 
 ```bash
-docker build --build-arg NEXT_PUBLIC_APP_URL=http://localhost:5002 -t crashguard:docker-test .
+docker build -t crashguard:docker-test .
 node scripts/test-docker.mjs
 ```
 

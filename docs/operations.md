@@ -6,7 +6,7 @@
 
 CrashGuard runs as a single instance with a shared workspace. Use persistent local disk for SQLite, including its WAL/SHM files. Avoid network filesystems and ephemeral serverless storage.
 
-- Set `NEXT_PUBLIC_APP_URL` to your public HTTPS URL before building. Rebuild when it changes.
+- Set server-only `APP_URL` to your HTTPS origin at runtime. The image does not need rebuilding when it changes.
 - Passkeys require HTTPS, except on `localhost`. Keep the hostname stable: credentials are bound to it.
 - A reverse proxy must preserve the incoming host and protocol. Dashboard writes must match `AUTH_ORIGIN`.
 - There is no automatic retention. Monitor disk usage, including attachments and replay recordings.

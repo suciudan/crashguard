@@ -195,3 +195,13 @@ test("production passkeys require HTTPS and use secure cookies", () => {
   assert.equal(cookie.httpOnly, true);
   process.env.AUTH_ORIGIN = "http://localhost:5000";
 });
+
+test("passkeys read the server origin at runtime", () => {
+  delete process.env.AUTH_ORIGIN;
+  process.env.APP_URL = "https://first.example.com";
+  assert.equal(authOrigin().rpID, "first.example.com");
+  process.env.APP_URL = "https://second.example.com";
+  assert.equal(authOrigin().rpID, "second.example.com");
+  delete process.env.APP_URL;
+  process.env.AUTH_ORIGIN = "http://localhost:5000";
+});

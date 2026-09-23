@@ -221,10 +221,7 @@ export function Setup({
     : project.platform;
   const [origin, setOrigin] = useState("");
   const [sending, setSending] = useState(false);
-  useEffect(
-    () => setOrigin(process.env.NEXT_PUBLIC_APP_URL || window.location.origin),
-    [],
-  );
+  useEffect(() => setOrigin(window.location.origin), []);
   const dsn = origin
     ? `${origin.replace("://", `://${project.public_key}@`).replace(/\/$/, "")}/${project.id}`
     : "";

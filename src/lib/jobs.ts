@@ -197,7 +197,7 @@ export async function runJobs(limit = 10) {
           | undefined;
         if (rule?.enabled) {
           const origin =
-            process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5000";
+            process.env.APP_URL || "http://localhost:5000";
           await deliverWebhook(
             rule.url,
             rule.secret,

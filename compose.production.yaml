@@ -8,8 +8,8 @@ services:
     ports:
       - "127.0.0.1:${CRASHGUARD_PORT:-5000}:5000"
     environment:
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?Set the public HTTPS origin}
-      AUTH_ORIGIN: ${NEXT_PUBLIC_APP_URL}
+      APP_URL: ${APP_URL:?Set the production origin}
+      AUTH_ORIGIN: ${APP_URL}
       DATABASE_PATH: /app/data/crashguard.sqlite
       INGEST_RATE_LIMIT: ${INGEST_RATE_LIMIT:-120}
       ALERT_WEBHOOK_HOSTS: ${ALERT_WEBHOOK_HOSTS:-}
