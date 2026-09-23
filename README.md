@@ -6,6 +6,10 @@ Self-hosted monitoring for frontend and backend apps, using official Sentry SDKs
 
 **Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · SQLite**
 
+## Screenshots
+
+Explore the [dashboard](screenshots/dashboard.png) for event activity and summary metrics, the [issue list](screenshots/issues.png) for filtering and managing errors, and [issue details](screenshots/issue-details.png) for stack traces and source context. All screenshots use illustrative data from a local demo workspace.
+
 ## Quick start
 
 Requires **Node.js 22.13+** (24 recommended) and npm. Run these commands from the checkout; use WSL for a WSL-hosted project.
