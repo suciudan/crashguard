@@ -3,10 +3,11 @@ import { z } from "zod";
 import { createProject, dashboard, issueDetail, setStatus } from "@/lib/db";
 import { ActionError, runAction } from "@/lib/action-guard";
 import { symbolicateEvent } from "@/lib/sourcemaps";
-import { sidebarSections } from "@/lib/telemetry";
+import { sidebarSections, telemetryDb } from "@/lib/telemetry";
+import { requireOwner } from "@/lib/access";
 
 export async function getDashboard(filters: Record<string, string>) {
-  return runAction(() => {
+  return runAction(({ current }) => {
     const parsed = z
       .record(z.string(), z.string().max(1000))
       .safeParse(filters);
@@ -15,11 +16,13 @@ export async function getDashboard(filters: Record<string, string>) {
     return {
       ...dashboard(new URLSearchParams(parsed.data)),
       sections: sidebarSections(),
+      account: { name: current!.account_name, role: current!.role },
     };
   });
 }
 export async function addProject(input: { name: string; platform: string }) {
   return runAction(() => {
+    requireOwner();
     const parsed = z
       .object({
         name: z.string().trim().min(1).max(60),
@@ -41,8 +44,23 @@ export async function getIssue(id: number, eventId?: string | null) {
       throw new ActionError("Invalid event ID.");
     const detail = issueDetail(id, eventId || undefined);
     if (!detail) throw new ActionError("Issue not found");
+    const selectedEvent = eventId
+      ? detail.events.find((event) => event.event_id === eventId)
+      : detail.events[0];
+    const attachmentCount = selectedEvent
+      ? (
+          telemetryDb()
+            .prepare(
+              "SELECT COUNT(*) AS count FROM telemetry WHERE kind='attachment' AND project_id=? AND event_id=?",
+            )
+            .get(detail.issue.project_id, selectedEvent.event_id) as {
+            count: number;
+          }
+        ).count
+      : 0;
     return {
       ...detail,
+      attachmentCount,
       events: detail.events.map((event) => ({
         ...event,
         payload: symbolicateEvent(detail.issue.project_id, event.payload),

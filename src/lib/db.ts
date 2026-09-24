@@ -3,6 +3,9 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { normalizeEvent } from "./events";
+import { migrateAccounts } from "./accounts-schema";
+import { migrateMcp } from "./mcp-schema";
+import { projectScope } from "./access";
 import type {
   Project,
   SentryEvent,
@@ -35,6 +38,8 @@ export function db() {
     CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, credential_id TEXT NOT NULL REFERENCES passkeys(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS auth_challenges (token_hash TEXT PRIMARY KEY, challenge TEXT NOT NULL, kind TEXT NOT NULL, session_hash TEXT, expires_at INTEGER NOT NULL);
   `);
+  migrateAccounts(instance);
+  migrateMcp(instance);
   return instance;
 }
 export function createProject(name: string, platform: string): Project {
@@ -57,7 +62,7 @@ export function getProject(id: number) {
 export function projects() {
   return db()
     .prepare(
-      "SELECT p.*, (SELECT COUNT(*) FROM events e WHERE e.project_id = p.id) AS event_count FROM projects p ORDER BY p.id",
+      `SELECT p.*, (SELECT COUNT(*) FROM events e WHERE e.project_id = p.id) AS event_count FROM projects p WHERE ${projectScope("p.id")} ORDER BY p.id`,
     )
     .all() as Project[];
 }
@@ -127,7 +132,7 @@ export function dashboard(
     ? Number(params.get("hours"))
     : 24;
   const since = new Date(Date.now() - hours * 3600000).toISOString();
-  const where = ["e.received_at >= ?"];
+  const where = ["e.received_at >= ?", projectScope("e.project_id")];
   const args: (string | number)[] = [since];
   if (params.get("project")) {
     where.push("e.project_id = ?");
@@ -183,7 +188,7 @@ export function dashboard(
   const environments = (
     db()
       .prepare(
-        "SELECT 'production' AS environment UNION SELECT environment FROM events ORDER BY environment",
+        `SELECT 'production' AS environment UNION SELECT environment FROM events WHERE ${projectScope()} ORDER BY environment`,
       )
       .all() as { environment: string }[]
   ).map((e) => e.environment);
@@ -192,7 +197,7 @@ export function dashboard(
 export function issueDetail(id: number, eventId?: string) {
   const issue = db()
     .prepare(
-      "SELECT i.*, p.name AS project_name, p.platform, (SELECT COUNT(*) FROM events WHERE issue_id = i.id) AS event_count, (SELECT COUNT(DISTINCT user_key) FROM events WHERE issue_id = i.id) AS user_count FROM issues i JOIN projects p ON p.id = i.project_id WHERE i.id = ?",
+      `SELECT i.*, p.name AS project_name, p.platform, (SELECT COUNT(*) FROM events WHERE issue_id = i.id) AS event_count, (SELECT COUNT(DISTINCT user_key) FROM events WHERE issue_id = i.id) AS user_count FROM issues i JOIN projects p ON p.id = i.project_id WHERE i.id = ? AND ${projectScope("i.project_id")}`,
     )
     .get(id) as Issue | undefined;
   if (!issue) return null;
@@ -218,6 +223,6 @@ export function issueDetail(id: number, eventId?: string) {
 }
 export function setStatus(id: number, status: string) {
   return db()
-    .prepare("UPDATE issues SET status = ? WHERE id = ?")
+    .prepare(`UPDATE issues SET status = ? WHERE id = ? AND ${projectScope()}`)
     .run(status, id).changes;
 }

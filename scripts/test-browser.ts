@@ -15,6 +15,9 @@ async function main() {
   page.on("pageerror", (e) => errors.push(e.message));
   try {
     await page.goto(base);
+    await page
+      .getByRole("button", { name: "Issue filters", exact: true })
+      .click();
     await expect(
       page.getByRole("combobox", { name: "Project", exact: true }),
     ).toBeVisible();
@@ -86,7 +89,11 @@ async function main() {
     await page
       .getByRole("link", { name: "TypeError: Cannot read properties" })
       .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Issue details", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".section-list-pane")).toBeVisible();
+    await expect(page.locator(".issue-list-row")).toHaveCount(7);
     await expect(
       page.getByText("calculateTotal", { exact: true }),
     ).toBeVisible();
@@ -112,20 +119,29 @@ async function main() {
       .getByRole("button", { name: "Reopen issue", exact: true })
       .click();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).not.toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Issue details", exact: true }),
+    ).toHaveCount(0);
     await page
       .getByRole("textbox", { name: "Search issues" })
       .fill("Connection pool");
-    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator(".issue-list-row")).toHaveCount(1);
     await page.getByRole("button", { name: "Clear search" }).click();
-    await expect(page.locator("tbody tr")).toHaveCount(7);
+    await expect(page.locator(".issue-list-row")).toHaveCount(7);
+    await page
+      .getByRole("button", { name: "Issue filters", exact: true })
+      .click();
     await page
       .getByRole("combobox", { name: "Environment", exact: true })
       .selectOption("staging");
-    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator(".issue-list-row")).toHaveCount(1);
     await page
       .getByRole("combobox", { name: "Environment", exact: true })
       .selectOption("");
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Projects", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "New project", exact: true })
       .click();

@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { authOrigin, session } from "./auth";
 import type { ActionResult } from "./action-result";
+import { AccessError, withAccount } from "./access";
 
 export class ActionError extends Error {}
 export async function runAction<T>(
@@ -25,9 +26,12 @@ export async function runAction<T>(
         error: "Sign in with your passkey to continue.",
         code: "UNAUTHENTICATED",
       };
-    return { data: await work({ cookies: jar, current }) };
+    return {
+      data: await withAccount(current, () => work({ cookies: jar, current })),
+    };
   } catch (error) {
-    if (error instanceof ActionError) return { error: error.message };
+    if (error instanceof ActionError || error instanceof AccessError)
+      return { error: error.message };
     console.error(
       "Server Action failed:",
       error instanceof Error ? error.message : "Unknown error",

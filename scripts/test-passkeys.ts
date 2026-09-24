@@ -129,7 +129,7 @@ async function main() {
       .click();
     await expect(page).toHaveURL(base + "/?view=projects");
     await expect(
-      page.getByRole("heading", { name: "Projects", exact: true }),
+      page.getByRole("heading", { name: /^Projects(?: |$)/ }),
     ).toBeVisible();
     await expect.poll(() => actions.has("dashboard")).toBe(true);
     const cookie = (await context.cookies()).find(
@@ -265,7 +265,7 @@ async function main() {
     ).toBe(true);
     await page.getByRole("button", { name: "Sign in with passkey" }).click();
     await expect(
-      page.getByRole("heading", { name: "Issues", exact: true }),
+      page.getByRole("heading", { name: /^Issues(?: |$)/ }),
     ).toBeVisible();
     await context.storageState({ path: "test-results/passkey-session.json" });
     const authenticatedHTML = await browser.newContext({

@@ -11,6 +11,26 @@ const database = new Database(path, { fileMustExist: true });
 try {
   database.pragma("foreign_keys = ON");
   database.transaction(() => {
+    if (
+      database
+        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mcp_tokens'")
+        .get()
+    )
+      database
+        .prepare("UPDATE mcp_tokens SET revoked_at=? WHERE revoked_at IS NULL")
+        .run(Date.now());
+    if (
+      database
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='project_invitations'",
+        )
+        .get()
+    )
+      database
+        .prepare(
+          "UPDATE project_invitations SET revoked_at=? WHERE accepted_at IS NULL AND revoked_at IS NULL",
+        )
+        .run(Date.now());
     for (const table of [
       "auth_sessions",
       "auth_challenges",

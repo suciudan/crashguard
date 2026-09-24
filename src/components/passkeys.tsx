@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   startRegistration,
@@ -177,16 +178,16 @@ export function Security() {
   return (
     <div className="security-shell">
       <header>
-        <a href="/" className="button">
+        <Link href="/" className="button">
           <ArrowLeft size={16} />
           Back to issues
-        </a>
+        </Link>
         <SignOut />
       </header>
       <h1>Passkeys</h1>
       <p>
-        Manage access to your CrashGuard workspace. Add a backup passkey so you
-        can sign in from another device.
+        Manage your account’s passkeys. Add a backup passkey so you can sign in
+        from another device.
       </p>
       {error && (
         <div className="error-banner" role="alert">

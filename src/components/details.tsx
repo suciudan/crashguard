@@ -5,15 +5,12 @@ import {
   Check,
   CheckCheck,
   ChevronDown,
-  ChevronRight,
   Circle,
   CircleAlert,
   Clock3,
   Copy,
-  Layers3,
   Loader2,
   Plus,
-  ShieldCheck,
   X,
   Zap,
 } from "lucide-react";
@@ -27,44 +24,7 @@ import {
 } from "@/app/actions/dashboard";
 import { findRelatedReplay } from "@/app/actions/telemetry";
 import { AppLink, useAppNavigation } from "./navigation";
-function useDialog(onClose: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const old = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    ref.current?.focus();
-    function key(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab") {
-        const nodes = ref.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), a[href], input, select, textarea, summary, [tabindex="0"]',
-        );
-        if (!nodes?.length) return;
-        const first = nodes[0],
-          last = nodes[nodes.length - 1];
-        if (
-          e.shiftKey &&
-          (document.activeElement === first ||
-            document.activeElement === ref.current)
-        ) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    document.addEventListener("keydown", key);
-    return () => {
-      document.body.style.overflow = old;
-      document.removeEventListener("keydown", key);
-      previous?.focus();
-    };
-  }, [onClose]);
-  return ref;
-}
+import { useDialog } from "./use-dialog";
 export function ProjectModal({
   onClose,
   onCreated,
@@ -415,6 +375,7 @@ export function IssuePanel({
   const [detail, setDetail] = useState<{
     issue: Issue;
     events: StoredEvent[];
+    attachmentCount: number;
   } | null>(null);
   const [error, setError] = useState("");
   const { params, href, update } = useAppNavigation();
@@ -428,7 +389,18 @@ export function IssuePanel({
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const stableClose = useCallback(() => closeRef.current(), []);
-  const ref = useDialog(stableClose);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.key === "Escape" &&
+        !document.querySelector('[aria-modal="true"]')
+      ) {
+        stableClose();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [stableClose]);
   useEffect(() => {
     let cancelled = false;
     setError("");
@@ -470,189 +442,186 @@ export function IssuePanel({
     }
   }
   return (
-    <div className="panel-backdrop" onClick={onClose}>
-      <div
-        className="issue-panel"
-        ref={ref}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="issue-panel-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="panel-top">
-          <span>
-            <Layers3 size={16} />
-            Issue details <ChevronRight size={13} />
-            <span>CG-{id}</span>
-          </span>
-          <button
-            aria-label="Close issue"
-            className="icon-button"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </div>
-        {error && (
-          <div role="alert" className="error-banner">
-            {error}
+    <section
+      className="issue-panel inline-issue-panel"
+      aria-label="Issue details"
+    >
+      <div className="panel-top">
+        {detail && (
+          <div className="panel-actions">
+            <button
+              disabled={saving}
+              className="button primary"
+              onClick={() =>
+                changeStatus(
+                  detail.issue.status === "resolved"
+                    ? "unresolved"
+                    : "resolved",
+                )
+              }
+            >
+              <CheckCheck size={16} />
+              {detail.issue.status === "resolved"
+                ? "Reopen issue"
+                : "Mark resolved"}
+            </button>
+            <button
+              disabled={saving}
+              className="button"
+              onClick={() =>
+                changeStatus(
+                  detail.issue.status === "ignored" ? "unresolved" : "ignored",
+                )
+              }
+            >
+              {detail.issue.status === "ignored"
+                ? "Stop ignoring"
+                : "Ignore issue"}
+            </button>
           </div>
         )}
-        {!detail && !error ? (
-          <div className="loading">
-            <Loader2 className="spin" />
-            Loading event…
-          </div>
-        ) : detail ? (
-          <>
-            <div className="panel-heading">
-              <div className="panel-project">
-                <Platform platform={detail.issue.platform} small />
-                {detail.issue.project_name}
-                <span className={`status-pill ${detail.issue.status}`}>
-                  {detail.issue.status}
-                </span>
-              </div>
-              <h2 id="issue-panel-title">{detail.issue.title}</h2>
-              <p>{detail.issue.culprit}</p>
-              <div className="panel-actions">
-                <button
-                  disabled={saving}
-                  className="button primary"
-                  onClick={() =>
-                    changeStatus(
-                      detail.issue.status === "resolved"
-                        ? "unresolved"
-                        : "resolved",
-                    )
-                  }
-                >
-                  <CheckCheck size={16} />
-                  {detail.issue.status === "resolved"
-                    ? "Reopen issue"
-                    : "Mark resolved"}
-                </button>
-                <button
-                  disabled={saving}
-                  className="button"
-                  onClick={() =>
-                    changeStatus(
-                      detail.issue.status === "ignored"
-                        ? "unresolved"
-                        : "ignored",
-                    )
-                  }
-                >
-                  {detail.issue.status === "ignored"
-                    ? "Stop ignoring"
-                    : "Ignore issue"}
-                </button>
-              </div>
-            </div>
-            <div className="detail-stats">
-              <div>
-                <span>Events</span>
-                <strong>{detail.issue.event_count}</strong>
-              </div>
-              <div>
-                <span>Users</span>
-                <strong>{detail.issue.user_count || "—"}</strong>
-              </div>
-              <div>
-                <span>First seen</span>
-                <strong>{relative(detail.issue.first_seen)}</strong>
-              </div>
-              <div>
-                <span>Last seen</span>
-                <strong>{relative(detail.issue.last_seen)}</strong>
-              </div>
-            </div>
-            <div className="event-selector">
-              <span>
-                <Clock3 size={14} />
-                Occurrence
+        <button
+          aria-label="Close issue"
+          className="icon-button"
+          onClick={onClose}
+        >
+          <X size={18} />
+        </button>
+      </div>
+      {error && (
+        <div role="alert" className="error-banner">
+          {error}
+        </div>
+      )}
+      {!detail && !error ? (
+        <div className="loading">
+          <Loader2 className="spin" />
+          Loading event…
+        </div>
+      ) : detail ? (
+        <>
+          <div className="panel-heading">
+            <div className="panel-project">
+              <Platform platform={detail.issue.platform} small />
+              {detail.issue.project_name}
+              <span className="issue-reference">CG-{id}</span>
+              <span className={`status-pill ${detail.issue.status}`}>
+                {detail.issue.status}
               </span>
-              <select
-                aria-label="Event occurrence"
-                value={event?.event_id || ""}
-                onChange={(e) => update({ event: e.target.value })}
-              >
-                {!event && (
-                  <option value="" disabled>
-                    Occurrence not found
-                  </option>
-                )}
-                {detail.events.map((e) => (
-                  <option value={e.event_id} key={e.id}>
-                    {new Date(e.received_at).toLocaleString()} ·{" "}
-                    {e.event_id.slice(0, 8)}
-                  </option>
-                ))}
-              </select>
             </div>
-            {detail.issue.event_count > 50 && (
-              <p className="occurrence-note">
-                Showing the latest 50 occurrences and any linked older
-                occurrence.
-              </p>
-            )}
-            {eventId && !event && (
-              <div className="error-banner" role="alert">
-                This occurrence was not found in this issue. Choose another
-                occurrence above.
-              </div>
-            )}
-            <div className="event-tags">
-              <span>{event?.environment}</span>
-              {event?.release && <span>{event.release}</span>}
-              <span>{payload?.platform || "unknown platform"}</span>
-              {Object.entries(
-                Array.isArray(payload?.tags)
-                  ? Object.fromEntries(payload.tags)
-                  : payload?.tags || {},
-              ).map(([k, v]) => (
-                <span key={k}>
-                  {k}: {String(v)}
-                </span>
-              ))}
+            <h2 id="issue-panel-title">{detail.issue.title}</h2>
+            <p>{detail.issue.culprit}</p>
+          </div>
+          <div className="detail-stats">
+            <div>
+              <span>Events</span>
+              <strong>{detail.issue.event_count}</strong>
             </div>
-            <div className="telemetry-links" style={{ padding: "0 28px" }}>
-              {typeof (payload?.contexts?.replay as { replay_id?: unknown })
-                ?.replay_id === "string" && (
-                <button
-                  className="button"
-                  onClick={async () => {
-                    try {
-                      const record = await action(
-                        findRelatedReplay(
-                          detail.issue.project_id,
-                          String(
-                            (payload?.contexts?.replay as { replay_id: string })
-                              .replay_id,
-                          ),
-                        ),
-                      );
-                      update({
-                        view: "replays",
-                        record,
-                        issue: null,
-                        event: null,
-                      });
-                    } catch (e) {
-                      notify((e as Error).message);
-                    }
-                  }}
-                >
-                  Replay
-                </button>
+            <div>
+              <span>Users</span>
+              <strong>{detail.issue.user_count || "—"}</strong>
+            </div>
+            <div>
+              <span>First seen</span>
+              <strong>{relative(detail.issue.first_seen)}</strong>
+            </div>
+            <div>
+              <span>Last seen</span>
+              <strong>{relative(detail.issue.last_seen)}</strong>
+            </div>
+          </div>
+          <div className="event-selector">
+            <span>
+              <Clock3 size={14} />
+              Occurrence
+            </span>
+            <select
+              aria-label="Event occurrence"
+              value={event?.event_id || ""}
+              onChange={(e) => update({ event: e.target.value })}
+            >
+              {!event && (
+                <option value="" disabled>
+                  Occurrence not found
+                </option>
               )}
+              {detail.events.map((e) => (
+                <option value={e.event_id} key={e.id}>
+                  {new Date(e.received_at).toLocaleString()} ·{" "}
+                  {e.event_id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {detail.issue.event_count > 50 && (
+            <p className="occurrence-note">
+              Showing the latest 50 occurrences and any linked older occurrence.
+            </p>
+          )}
+          {eventId && !event && (
+            <div className="error-banner" role="alert">
+              This occurrence was not found in this issue. Choose another
+              occurrence above.
+            </div>
+          )}
+          <div className="event-tags">
+            <span>{event?.environment}</span>
+            {event?.release && <span>{event.release}</span>}
+            <span>{payload?.platform || "unknown platform"}</span>
+            {Object.entries(
+              Array.isArray(payload?.tags)
+                ? Object.fromEntries(payload.tags)
+                : payload?.tags || {},
+            ).map(([k, v]) => (
+              <span key={k}>
+                {k}: {String(v)}
+              </span>
+            ))}
+          </div>
+          <div className="telemetry-links" style={{ padding: "0 28px" }}>
+            {typeof (payload?.contexts?.replay as { replay_id?: unknown })
+              ?.replay_id === "string" && (
+              <button
+                className="button"
+                onClick={async () => {
+                  try {
+                    const record = await action(
+                      findRelatedReplay(
+                        detail.issue.project_id,
+                        String(
+                          (payload?.contexts?.replay as { replay_id: string })
+                            .replay_id,
+                        ),
+                      ),
+                    );
+                    update({
+                      view: "replays",
+                      record,
+                      project: detail.issue.project_id,
+                      q: null,
+                      offset: null,
+                      trace: null,
+                      relatedEvent: null,
+                      issue: null,
+                      event: null,
+                      tab: null,
+                    });
+                  } catch (e) {
+                    notify((e as Error).message);
+                  }
+                }}
+              >
+                Replay
+              </button>
+            )}
+            {detail.attachmentCount > 0 && (
               <AppLink
                 className="button"
                 href={href({
                   view: "attachments",
                   project: detail.issue.project_id,
                   relatedEvent: event?.event_id || eventId,
+                  trace: null,
                   record: null,
                   issue: null,
                   event: null,
@@ -660,124 +629,120 @@ export function IssuePanel({
                   q: null,
                 })}
               >
-                Attachments
+                Attachments ({detail.attachmentCount})
               </AppLink>
-              {typeof (payload?.contexts?.trace as { trace_id?: unknown })
-                ?.trace_id === "string" && (
-                <AppLink
-                  className="button"
-                  href={href({
-                    view: "transactions",
-                    project: detail.issue.project_id,
-                    trace: String(
-                      (payload?.contexts?.trace as { trace_id: string })
-                        .trace_id,
-                    ),
-                    record: null,
-                    issue: null,
-                    event: null,
-                    offset: null,
-                    q: null,
-                  })}
-                >
-                  Trace
-                </AppLink>
-              )}
-            </div>
-            <div className="panel-tabs tabs">
-              {[
-                ["stack", "Stack trace"],
-                ["breadcrumbs", `Breadcrumbs (${crumbs.length})`],
-                ["context", "Context"],
-                ["raw", "Raw event"],
-              ].map(([key, text]) => (
-                <AppLink
-                  key={key}
-                  className={tab === key ? "selected" : ""}
-                  href={href({ tab: key, event: event?.event_id || eventId })}
-                >
-                  {text}
-                </AppLink>
-              ))}
-            </div>
-            <div className="panel-content">
-              {tab === "stack" && (
-                <>
-                  {exceptions.length ? (
-                    exceptions.map((exception, i) => (
-                      <div key={i}>
-                        <div className="exception-title">
-                          <CircleAlert size={17} />
-                          <strong>{exception.type}</strong>
-                          <span>{exception.value}</span>
-                        </div>
-                        <Frames frames={exception.stacktrace?.frames || []} />
+            )}
+            {typeof (payload?.contexts?.trace as { trace_id?: unknown })
+              ?.trace_id === "string" && (
+              <AppLink
+                className="button"
+                href={href({
+                  view: "transactions",
+                  project: detail.issue.project_id,
+                  relatedEvent: null,
+                  trace: String(
+                    (payload?.contexts?.trace as { trace_id: string }).trace_id,
+                  ),
+                  record: null,
+                  issue: null,
+                  event: null,
+                  offset: null,
+                  q: null,
+                })}
+              >
+                Trace
+              </AppLink>
+            )}
+          </div>
+          <div className="panel-tabs tabs">
+            {[
+              ["stack", "Stack trace"],
+              ["breadcrumbs", `Breadcrumbs (${crumbs.length})`],
+              ["context", "Context"],
+              ["raw", "Raw event"],
+            ].map(([key, text]) => (
+              <AppLink
+                key={key}
+                className={tab === key ? "selected" : ""}
+                href={href({ tab: key, event: event?.event_id || eventId })}
+              >
+                {text}
+              </AppLink>
+            ))}
+          </div>
+          <div className="panel-content">
+            {tab === "stack" && (
+              <>
+                {exceptions.length ? (
+                  exceptions.map((exception, i) => (
+                    <div key={i}>
+                      <div className="exception-title">
+                        <CircleAlert size={17} />
+                        <strong>{exception.type}</strong>
+                        <span>{exception.value}</span>
                       </div>
-                    ))
-                  ) : (
-                    <Frames frames={payload?.stacktrace?.frames || []} />
-                  )}
-                </>
-              )}
-              {tab === "breadcrumbs" &&
-                (crumbs.length ? (
-                  <div className="breadcrumbs-list">
-                    {crumbs.map((crumb, i) => (
-                      <div key={i}>
-                        <span className="crumb-icon">
-                          <Circle size={10} />
-                        </span>
-                        <div>
-                          <strong>{crumb.category || "default"}</strong>
-                          <p>{crumb.message || JSON.stringify(crumb.data)}</p>
-                          {crumb.data && crumb.message && (
-                            <pre>{JSON.stringify(crumb.data, null, 2)}</pre>
-                          )}
-                        </div>
-                        <span className="crumb-level">
-                          {crumb.level || "info"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      <Frames frames={exception.stacktrace?.frames || []} />
+                    </div>
+                  ))
                 ) : (
-                  <div className="detail-empty">
-                    No breadcrumbs were sent with this event.
-                  </div>
-                ))}
-              {tab === "context" && (
-                <>
-                  {Object.entries({
-                    User: payload?.user,
-                    Request: payload?.request,
-                    Contexts: payload?.contexts,
-                    SDK: payload?.sdk,
-                  }).map(
-                    ([name, value]) =>
-                      Boolean(value) && (
-                        <section className="context-section" key={name}>
-                          <h3>{name}</h3>
-                          <pre>{JSON.stringify(value, null, 2)}</pre>
-                        </section>
-                      ),
-                  )}
-                </>
-              )}
-              {tab === "raw" && (
-                <CodeBlock
-                  code={JSON.stringify(payload, null, 2)}
-                  notify={notify}
-                />
-              )}
-            </div>
-            <div className="panel-footer">
-              <ShieldCheck size={14} />
-              Resolved issues reopen automatically if a new event arrives.
-            </div>
-          </>
-        ) : null}
-      </div>
-    </div>
+                  <Frames frames={payload?.stacktrace?.frames || []} />
+                )}
+              </>
+            )}
+            {tab === "breadcrumbs" &&
+              (crumbs.length ? (
+                <div className="breadcrumbs-list">
+                  {crumbs.map((crumb, i) => (
+                    <div key={i}>
+                      <span className="crumb-icon">
+                        <Circle size={10} />
+                      </span>
+                      <div>
+                        <strong>{crumb.category || "default"}</strong>
+                        <p>{crumb.message || JSON.stringify(crumb.data)}</p>
+                        {crumb.data && crumb.message && (
+                          <pre>{JSON.stringify(crumb.data, null, 2)}</pre>
+                        )}
+                      </div>
+                      <span className="crumb-level">
+                        {crumb.level || "info"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="detail-empty">
+                  No breadcrumbs were sent with this event.
+                </div>
+              ))}
+            {tab === "context" && (
+              <>
+                {Object.entries({
+                  User: payload?.user,
+                  Request: payload?.request,
+                  Contexts: payload?.contexts,
+                  SDK: payload?.sdk,
+                }).map(
+                  ([name, value]) =>
+                    Boolean(value) && (
+                      <section className="context-section" key={name}>
+                        <h3>{name}</h3>
+                        <pre>{JSON.stringify(value, null, 2)}</pre>
+                      </section>
+                    ),
+                )}
+              </>
+            )}
+            {tab === "raw" && (
+              <CodeBlock
+                code={JSON.stringify(payload, null, 2)}
+                notify={notify}
+              />
+            )}
+          </div>
+        </>
+      ) : null}
+    </section>
   );
 }
 function Frames({ frames }: { frames: Frame[] }) {

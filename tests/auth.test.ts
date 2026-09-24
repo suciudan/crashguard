@@ -50,6 +50,9 @@ function login() {
       "INSERT OR IGNORE INTO passkeys VALUES ('test-key', X'01', 0, '[]', 'Test', 0)",
     )
     .run();
+  db()
+    .prepare("INSERT OR IGNORE INTO account_passkeys VALUES ('test-key',1)")
+    .run();
   return signIn(json({}), req(), "test-key").cookies.get("cg_session")!.value;
 }
 test("dashboard always requires a session, while ingestion and setup remain reachable", () => {

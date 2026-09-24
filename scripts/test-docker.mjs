@@ -78,14 +78,24 @@ try {
   await expect(navigation.getByRole("link")).toHaveText([
     "Dashboard",
     "Issues",
+    "Members",
     "Projects",
     "SDK setup",
   ]);
   await expect(
     page.getByLabel("Navigate workspace").locator("option"),
-  ).toHaveText(["Dashboard", "Issues", "Projects", "Connect your app"]);
+  ).toHaveText([
+    "Dashboard",
+    "Issues",
+    "Members",
+    "Projects",
+    "Connect your app",
+  ]);
+  await page
+    .getByRole("button", { name: "Issue filters", exact: true })
+    .click();
   await expect(
-    page.getByRole("tablist", { name: "Issue status" }),
+    page.getByRole("combobox", { name: "Issue status" }),
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Event overview" }),
@@ -99,9 +109,9 @@ try {
   await expect(
     page.getByRole("region", { name: "Event overview" }),
   ).toBeVisible();
-  await expect(page.getByRole("tablist", { name: "Issue status" })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByRole("combobox", { name: "Issue status" }),
+  ).toHaveCount(0);
   await page.getByLabel("Time range", { exact: true }).selectOption("168");
   await page.reload();
   await expect(
@@ -111,8 +121,11 @@ try {
     "168",
   );
   await navigation.getByRole("link", { name: "Issues", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Issue filters", exact: true })
+    .click();
   await expect(
-    page.getByRole("tablist", { name: "Issue status" }),
+    page.getByRole("combobox", { name: "Issue status" }),
   ).toBeVisible();
   await expect(page.getByLabel("Time range", { exact: true })).toHaveValue(
     "168",
@@ -125,9 +138,13 @@ try {
     page.getByRole("region", { name: "Event overview" }),
   ).toBeVisible();
   await page.goForward();
+  await page
+    .getByRole("button", { name: "Issue filters", exact: true })
+    .click();
   await expect(
-    page.getByRole("tablist", { name: "Issue status" }),
+    page.getByRole("combobox", { name: "Issue status" }),
   ).toBeVisible();
+  await navigation.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByRole("button", { name: "New project", exact: true }).click();
   await page.getByLabel("Project name").fill("Container persistence check");
   await page

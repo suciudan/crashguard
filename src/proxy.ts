@@ -10,6 +10,8 @@ export function proxy(request: NextRequest) {
       : new NextResponse(null, { status: 405, headers: { Allow: "POST" } });
   }
   if (path === "/api/health") return NextResponse.next();
+  // MCP authenticates each request with its own revocable bearer token.
+  if (path === "/api/mcp") return NextResponse.next();
   const isAction =
     request.method === "POST" && request.headers.has("next-action");
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
@@ -25,6 +27,12 @@ export function proxy(request: NextRequest) {
       );
   }
   // Action handlers enforce their own authorization and accept Next's action encoding.
+  if (/^\/invite\/[a-f0-9]{64}$/.test(path)) {
+    const response = NextResponse.next();
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  }
   if (path === "/login" || isAction) return NextResponse.next();
   if (!session(request)) {
     if (path.startsWith("/api/"))
