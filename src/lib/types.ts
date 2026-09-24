@@ -102,6 +102,7 @@ export type SidebarSections = Record<
   boolean
 >;
 export type DashboardData = {
+  account?: { name: string; role: "owner" | "member" };
   sections: SidebarSections;
   projects: Project[];
   issues: Issue[];

@@ -18,7 +18,9 @@ export default async function Page({
     );
     if (
       url.origin === origin &&
-      (url.pathname === "/" || url.pathname === "/settings/security")
+      (url.pathname === "/" ||
+        url.pathname === "/settings/security" ||
+        /^\/invite\/[a-f0-9]{64}$/.test(url.pathname))
     )
       destination = url.pathname + url.search;
   } catch {

@@ -29,9 +29,21 @@ Inside Compose, `DATABASE_PATH` is fixed at `/app/data/crashguard.sqlite`; chang
 
 ## Passkeys and recovery
 
-The first successful enrollment signs you in and closes anonymous enrollment. Add backup passkeys from **Passkeys** while signed in. This is one shared workspace, without individual accounts or roles.
+The first successful enrollment creates the workspace owner account and closes unrestricted enrollment. Existing installations migrate their passkeys and sessions to that account without re-enrollment; the WebAuthn user handle stays unchanged. Add backup passkeys from **Passkeys** while signed in. Passkeys belong to individual accounts and can only be managed by their owner.
 
-Sessions expire after seven days. Removing a passkey revokes its sessions; the current key and last remaining key cannot be removed. Private keys stay with the authenticator. SQLite stores public credentials and hashed session tokens.
+### Project invitations
+
+The workspace owner can open **Members** from the navigation, select a project in the side panel, and create an invitation link. Share it privately with one colleague. The recipient chooses an account name and registers a passkey, then signs in automatically with access to that project. Existing account holders can sign in to accept the link without creating another account.
+
+Links expire after seven days, are single-use, and can be revoked before acceptance. SQLite stores hashes of invitation tokens. The owner can remove a member’s project access from the same panel; their next request will enforce the updated membership. Removing project access preserves the colleague’s account and access to other projects.
+
+Owners can see all projects, create projects, and manage invitations and memberships. Members can view and manage issues, telemetry, SDK setup, releases, source maps, and alerts only within their invited projects. They cannot create projects or invite other users. Account names are display names, not verified email addresses; possession of an unused invitation link authorizes enrollment.
+
+Set `APP_URL` (or `AUTH_ORIGIN`, if overridden) to your reachable HTTPS origin so generated invitation links and passkeys use the same host.
+
+### Recovery
+
+Sessions expire after seven days. Removing a passkey revokes its sessions; the current key and last remaining key for each account cannot be removed. Private keys stay with the authenticator. SQLite stores public credentials and hashed session tokens.
 
 If every passkey is lost:
 
@@ -44,7 +56,7 @@ If every passkey is lost:
 
 3. Restart and enroll a new passkey before restoring access.
 
-The reset removes passkeys, sessions, and challenges. Projects, issues, and telemetry remain intact.
+The reset removes every account’s passkeys, sessions, and challenges, and revokes pending invitations. Projects, issues, and telemetry remain intact. Enroll the owner’s replacement passkey first, then issue fresh invitations to colleagues who need new accounts. Prefer backup passkeys to a workspace-wide reset.
 
 ## SDK compatibility
 

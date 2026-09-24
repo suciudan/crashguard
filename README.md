@@ -78,6 +78,8 @@ Initialize the SDK before your application code. Framework SDKs use their normal
 
 ## Features
 
+Connect **Codex or Claude Code** through **MCP** to search issues and inspect error events with a read-only MCP token. See [MCP setup](docs/mcp.md).
+
 | Area                         | Support                                                                                        |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | Issues                       | Grouping, search, filters, resolve/reopen/ignore, stack traces, breadcrumbs, and event context |
@@ -112,7 +114,9 @@ npm start
 
 Both local servers use port **5000**. Production configuration is supplied at runtime and is not embedded in the image or browser bundle. The deployment workflow reads secrets from GitHub's `production` Environment. Use persistent local storage; there is no automatic data retention.
 
-The first passkey secures the shared workspace. Enroll it before exposing a fresh installation, and add backup keys under **Passkeys**. [Recovery and deployment details →](docs/operations.md)
+The first passkey creates the workspace owner account. Enroll it before exposing a fresh installation, and add backup keys under **Passkeys**. Existing installations retain their passkeys under the owner account.
+
+To invite a colleague, open **Members → select a project → Create invitation link**. Share the link privately; they choose an account name and create a passkey. Each link grants access to one project, expires after seven days, and works once. Owners can revoke links or remove project access from the same panel. [Access and recovery details →](docs/operations.md#passkeys-and-recovery)
 
 ## Development
 

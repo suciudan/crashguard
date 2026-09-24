@@ -9,6 +9,12 @@ import {
   type AuthenticationResponseJSON,
 } from "@simplewebauthn/server";
 import { db } from "@/lib/db";
+import { randomBytes } from "node:crypto";
+import {
+  findInvitation,
+  invitationByHash,
+  consumeInvitation,
+} from "@/lib/invitations";
 import { ActionError, runAction } from "@/lib/action-guard";
 import {
   authOrigin,
@@ -16,7 +22,6 @@ import {
   cookieOptions,
   hasPasskeys,
   hashToken,
-  identity,
   saveChallenge,
   SESSION_COOKIE,
   session,
@@ -25,6 +30,8 @@ import {
 } from "@/lib/auth";
 
 type Key = {
+  account_id: number;
+  user_handle: string;
   id: string;
   public_key: Buffer;
   counter: number;
@@ -44,8 +51,10 @@ export async function getAuthStatus() {
 export async function listPasskeys() {
   return runAction(({ current }) => {
     const keys = db()
-      .prepare("SELECT id, name, created_at FROM passkeys ORDER BY created_at")
-      .all() as Pick<Key, "id" | "name" | "created_at">[];
+      .prepare(
+        "SELECT p.id, p.name, p.created_at FROM passkeys p JOIN account_passkeys k ON k.credential_id=p.id WHERE k.account_id=? ORDER BY p.created_at",
+      )
+      .all(current!.account_id) as Pick<Key, "id" | "name" | "created_at">[];
     return {
       keys: keys.map((key) => ({
         ...key,
@@ -54,22 +63,43 @@ export async function listPasskeys() {
     };
   });
 }
-export async function registrationOptions() {
+export async function registrationOptions(input?: {
+  invitation: string;
+  accountName: string;
+}) {
   return runAction(
     async ({ cookies, current }) => {
-      if (hasPasskeys() && !current)
+      if (input && current)
+        throw new ActionError(
+          "Accept this invitation with your signed-in account.",
+        );
+      const invitation = input ? findInvitation(input.invitation) : null;
+      const accountName = input?.accountName?.trim();
+      if (invitation && (!accountName || accountName.length > 60))
+        throw new ActionError("Enter an account name (1–60 characters).");
+      if (!invitation && hasPasskeys() && !current)
         throw new ActionError(
           "A passkey is already configured. Sign in to add another.",
         );
+      const accountId = invitation ? null : current?.account_id || 1;
+      const account = accountId
+        ? (db()
+            .prepare("SELECT name,user_handle FROM accounts WHERE id=?")
+            .get(accountId) as { name: string; user_handle: string })
+        : null;
+      const handle =
+        account?.user_handle || randomBytes(32).toString("base64url");
       const keys = db()
-        .prepare("SELECT id, transports FROM passkeys")
-        .all() as Key[];
+        .prepare(
+          "SELECT p.id, p.transports FROM passkeys p JOIN account_passkeys k ON k.credential_id=p.id WHERE k.account_id=?",
+        )
+        .all(accountId) as Key[];
       const options = await generateRegistrationOptions({
         rpName: "CrashGuard",
         rpID: authOrigin().rpID,
-        userName: "CrashGuard workspace",
-        userDisplayName: "CrashGuard workspace",
-        userID: new Uint8Array(Buffer.from(identity(), "base64url")),
+        userName: accountName || account!.name,
+        userDisplayName: accountName || account!.name,
+        userID: new Uint8Array(Buffer.from(handle, "base64url")),
         attestationType: "none",
         authenticatorSelection: {
           residentKey: "required",
@@ -85,6 +115,12 @@ export async function registrationOptions() {
         options.challenge,
         "register",
         current?.token_hash || null,
+        {
+          accountId,
+          handle,
+          accountName,
+          invitationHash: invitation?.token_hash,
+        },
       );
       return options;
     },
@@ -98,10 +134,20 @@ export async function registerPasskey(
   return runAction(
     async ({ cookies }) => {
       const challenge = takeChallenge({ cookies }, "register");
+      if (!challenge.data) throw new ActionError("Start passkey setup again.");
+      const enrollment = JSON.parse(challenge.data) as {
+        accountId: number | null;
+        handle: string;
+        accountName?: string;
+        invitationHash?: string;
+      };
       const allowed = () =>
-        challenge.session_hash
-          ? session({ cookies })?.token_hash === challenge.session_hash
-          : !hasPasskeys();
+        enrollment.invitationHash
+          ? Boolean(invitationByHash(enrollment.invitationHash)) &&
+            !session({ cookies })
+          : challenge.session_hash
+            ? session({ cookies })?.token_hash === challenge.session_hash
+            : !hasPasskeys();
       if (!allowed())
         throw new ActionError(
           "Setup is complete. Sign in before adding another passkey.",
@@ -117,6 +163,7 @@ export async function registerPasskey(
       if (!result.verified || !result.registrationInfo)
         throw new ActionError("Passkey registration could not be verified.");
       const credential = result.registrationInfo.credential;
+      let project: number | undefined;
       db()
         .transaction(() => {
           // Only one anonymous enrollment may win, even across concurrent requests.
@@ -124,6 +171,19 @@ export async function registerPasskey(
             throw new ActionError(
               "Setup is already complete. Sign in with the registered passkey.",
             );
+          let accountId = enrollment.accountId;
+          if (enrollment.invitationHash) {
+            accountId = Number(
+              db()
+                .prepare(
+                  "INSERT INTO accounts(name,user_handle,role,created_at) VALUES(?,?,'member',?)",
+                )
+                .run(enrollment.accountName!, enrollment.handle, Date.now())
+                .lastInsertRowid,
+            );
+            project = consumeInvitation(enrollment.invitationHash, accountId);
+          }
+          if (!accountId) throw new ActionError("Account not found.");
           db()
             .prepare("INSERT INTO passkeys VALUES (?, ?, ?, ?, ?, ?)")
             .run(
@@ -136,10 +196,15 @@ export async function registerPasskey(
                 : "My passkey",
               Date.now(),
             );
+          db()
+            .prepare(
+              "INSERT INTO account_passkeys(credential_id,account_id) VALUES(?,?)",
+            )
+            .run(credential.id, accountId);
           signIn(cookies, credential.id);
         })
         .immediate();
-      return { verified: true };
+      return { verified: true, project };
     },
     { public: true },
   );
@@ -166,7 +231,9 @@ export async function authenticatePasskey(
     async ({ cookies }) => {
       const challenge = takeChallenge({ cookies }, "authenticate");
       const key = db()
-        .prepare("SELECT * FROM passkeys WHERE id = ?")
+        .prepare(
+          "SELECT p.*,k.account_id,a.user_handle FROM passkeys p JOIN account_passkeys k ON k.credential_id=p.id JOIN accounts a ON a.id=k.account_id WHERE p.id = ?",
+        )
         .get(String(response?.id || "")) as Key | undefined;
       if (!key)
         throw new ActionError(
@@ -180,7 +247,7 @@ export async function authenticatePasskey(
       };
       if (
         response.response?.userHandle &&
-        response.response.userHandle !== identity()
+        response.response.userHandle !== key.user_handle
       )
         throw new ActionError("Passkey user does not match this workspace.");
       const { origin, rpID } = authOrigin();
@@ -233,7 +300,11 @@ export async function removePasskey(id: string) {
     db()
       .transaction(() => {
         const count = (
-          db().prepare("SELECT COUNT(*) AS count FROM passkeys").get() as {
+          db()
+            .prepare(
+              "SELECT COUNT(*) AS count FROM account_passkeys WHERE account_id=?",
+            )
+            .get(current!.account_id) as {
             count: number;
           }
         ).count;
@@ -247,7 +318,11 @@ export async function removePasskey(id: string) {
           );
         if (typeof id !== "string" || id.length > 2048)
           throw new ActionError("Invalid passkey ID.");
-        db().prepare("DELETE FROM passkeys WHERE id = ?").run(id);
+        db()
+          .prepare(
+            "DELETE FROM passkeys WHERE id = ? AND id IN (SELECT credential_id FROM account_passkeys WHERE account_id=?)",
+          )
+          .run(id, current!.account_id);
         return { ok: true };
       })
       .immediate(),

@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { ActionError, runAction } from "@/lib/action-guard";
-import { getProject } from "@/lib/db";
+import { requireProject, projectScope } from "@/lib/access";
 import {
   listTelemetry,
   telemetryDetail,
@@ -15,7 +15,7 @@ import { uploadSourceMap } from "@/lib/sourcemaps";
 import { validateWebhook } from "@/lib/jobs";
 function projectId(value: unknown) {
   const id = z.number().int().positive().parse(value);
-  if (!getProject(id)) throw new ActionError("Project not found.");
+  requireProject(id);
   return id;
 }
 export async function getTelemetry(input: {
@@ -68,7 +68,7 @@ export async function downloadAttachment(id: number) {
   return runAction(() => {
     const file = telemetryDb()
       .prepare(
-        "SELECT name,binary FROM telemetry WHERE id=? AND kind='attachment'",
+        `SELECT name,binary FROM telemetry WHERE id=? AND kind='attachment' AND ${projectScope()}`,
       )
       .get(z.number().int().positive().parse(id)) as
       { name: string; binary: Buffer } | undefined;
@@ -115,7 +115,7 @@ export async function getReleases(project?: number) {
         `SELECT r.*, p.name AS project_name,
       (SELECT COUNT(*) FROM events e WHERE e.project_id=r.project_id AND e.release=r.version) AS events,
       (SELECT COUNT(*) FROM source_maps s WHERE s.project_id=r.project_id AND s.release=r.version) AS maps
-      FROM releases r JOIN projects p ON p.id=r.project_id ${project ? "WHERE r.project_id=?" : ""} ORDER BY r.created_at DESC LIMIT 200`,
+      FROM releases r JOIN projects p ON p.id=r.project_id WHERE ${projectScope("r.project_id")} ${project ? "AND r.project_id=?" : ""} ORDER BY r.created_at DESC LIMIT 200`,
       )
       .all(...(project ? [project] : [])) as {
       id: number;
@@ -199,7 +199,7 @@ export async function getSourceMaps(project?: number) {
     if (project) projectId(project);
     return telemetryDb()
       .prepare(
-        `SELECT id,project_id,release,filename,debug_id,created_at FROM source_maps ${project ? "WHERE project_id=?" : ""} ORDER BY id DESC LIMIT 200`,
+        `SELECT id,project_id,release,filename,debug_id,created_at FROM source_maps WHERE ${projectScope()} ${project ? "AND project_id=?" : ""} ORDER BY id DESC LIMIT 200`,
       )
       .all(...(project ? [project] : [])) as {
       id: number;
@@ -214,7 +214,7 @@ export async function getSourceMaps(project?: number) {
 export async function deleteSourceMap(id: number) {
   return runAction(() => {
     telemetryDb()
-      .prepare("DELETE FROM source_maps WHERE id=?")
+      .prepare(`DELETE FROM source_maps WHERE id=? AND ${projectScope()}`)
       .run(z.number().int().positive().parse(id));
     return { ok: true };
   });
@@ -223,7 +223,7 @@ export async function getAlerts() {
   return runAction(() => ({
     rules: telemetryDb()
       .prepare(
-        "SELECT id,project_id,name,url,enabled,minimum_level FROM alert_rules ORDER BY id DESC",
+        `SELECT id,project_id,name,url,enabled,minimum_level FROM alert_rules WHERE ${projectScope()} ORDER BY id DESC`,
       )
       .all() as {
       id: number;
@@ -235,7 +235,7 @@ export async function getAlerts() {
     }[],
     deliveries: telemetryDb()
       .prepare(
-        "SELECT id,status,attempts,error,created_at,json_extract(payload,'$.rule') AS rule,json_extract(payload,'$.issue') AS issue FROM jobs WHERE kind='alert' ORDER BY id DESC LIMIT 100",
+        `SELECT id,status,attempts,error,created_at,json_extract(payload,'$.rule') AS rule,json_extract(payload,'$.issue') AS issue FROM jobs WHERE kind='alert' AND ${jobScope()} ORDER BY id DESC LIMIT 100`,
       )
       .all() as {
       id: number;
@@ -281,7 +281,9 @@ export async function addAlert(input: {
 export async function setAlertEnabled(id: number, enabled: boolean) {
   return runAction(() => {
     telemetryDb()
-      .prepare("UPDATE alert_rules SET enabled=? WHERE id=?")
+      .prepare(
+        `UPDATE alert_rules SET enabled=? WHERE id=? AND ${projectScope()}`,
+      )
       .run(
         z.boolean().parse(enabled) ? 1 : 0,
         z.number().int().positive().parse(id),
@@ -293,7 +295,7 @@ export async function retryJob(id: number) {
   return runAction(() => {
     const result = telemetryDb()
       .prepare(
-        "UPDATE jobs SET status='pending',attempts=0,available_at=?,error='',result=NULL WHERE id=? AND status='failed'",
+        `UPDATE jobs SET status='pending',attempts=0,available_at=?,error='',result=NULL WHERE id=? AND status='failed' AND ${jobScope()}`,
       )
       .run(Date.now(), z.number().int().positive().parse(id));
     if (!result.changes)
@@ -315,4 +317,8 @@ export async function findRelatedReplay(project: number, replayId: string) {
     if (!row) throw new ActionError("Replay has not arrived yet.");
     return row.id;
   });
+}
+
+function jobScope() {
+  return `((kind='alert' AND json_extract(payload,'$.rule') IN (SELECT id FROM alert_rules WHERE ${projectScope()})) OR (kind='minidump' AND json_extract(payload,'$.attachment') IN (SELECT id FROM telemetry WHERE ${projectScope()})))`;
 }

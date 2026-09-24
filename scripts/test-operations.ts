@@ -52,13 +52,18 @@ async function main() {
       page.getByRole("button", { name: "Enable", exact: true }),
     ).toBeVisible();
     await page.goto(`${base}/?view=releases&project=${project.id}`);
+    await page
+      .getByRole("button", { name: "New release", exact: true })
+      .click();
     await page.getByLabel("Version", { exact: true }).fill("operations@1");
     await page.getByLabel("Notes", { exact: true }).fill("First deployment");
     await page.getByLabel("Mark released", { exact: true }).check();
     await page
       .getByRole("button", { name: "Save release", exact: true })
       .click();
-    await expect(page.getByText("Released", { exact: true })).toBeVisible();
+    await expect(
+      page.locator(".release-metadata dd").filter({ hasText: /^Released$/ }),
+    ).toBeVisible();
     console.log(
       "PASS: alert rule creation/one-time secret, production background worker, failure history, disable, release creation/finalization through authenticated Server Actions.",
     );

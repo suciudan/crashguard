@@ -61,7 +61,40 @@ For `test:operations`, the test server must listen on port **5000 inside its con
 
 For `test:native`, also set `SYMBOLICATOR_URL` and `TEST_MINIDUMP_PATH`. A running Symbolicator and a real dump are required; fixtures are available in the [Symbolicator test suite](https://github.com/getsentry/symbolicator/tree/master/tests/fixtures).
 
+## Issue column scrolling
+
+Run `npm run build && npm run test:scroll` with Playwright Chromium installed.
+This starts a disposable local server with 65 sample issues and checks desktop
+and mobile layouts: the list scrolls independently, pagination stays at the
+bottom for long and short lists, and changing pages resets the scroll position.
+Screenshots are saved as `test-results/issues-scroll-*.png` and
+`test-results/issues-short-*.png`.
+
+## MCP connections
+
+`npm test` includes MCP protocol, authentication, project isolation, pagination,
+source-map, request limit, and recovery coverage. For browser and real HTTP checks:
+
+```bash
+npm run build
+npm run test:mcp
+```
+
+With Playwright Chromium installed, this starts its own local server on an available
+port with a disposable database. It verifies passkey enrollment, token creation,
+MCP client calls, token revocation, and desktop/mobile layouts. Screenshots are
+saved to `test-results/mcp-desktop.png` and `test-results/mcp-mobile.png`.
+
 ## Docker persistence
+
+For project invitations and account isolation:
+
+```bash
+docker build -t crashguard:invitations-test .
+node scripts/test-invitations.mjs
+```
+
+This uses an isolated Docker instance on port 5006 and a fresh database under `test-results/`. It exercises owner and colleague WebAuthn ceremonies, invitation acceptance and revocation, project access checks through real Server Actions, backup keys, and membership removal. The test container is removed afterward. Unit tests also cover migration of existing passkeys, token expiration, atomic acceptance, and project-scoped queries.
 
 With Docker and Playwright Chromium installed:
 

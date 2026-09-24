@@ -23,9 +23,11 @@ export const telemetryViews: Record<string, { title: string; kind: string }> = {
 export function Telemetry({
   view,
   projects,
+  onCountChange,
 }: {
   view: string;
   projects: Project[];
+  onCountChange?: (count: number | null) => void;
 }) {
   const { params, href, update } = useAppNavigation();
   const project = Number(params.get("project")) || undefined;
@@ -45,8 +47,12 @@ export function Telemetry({
   const [detail, setDetail] =
     useState<Awaited<ReturnType<typeof getTelemetryDetail>>["data"]>();
   const [error, setError] = useState("");
+  const [detailError, setDetailError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    onCountChange?.(loading ? null : list.total);
+  }, [loading, list.total, onCountChange]);
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -77,127 +83,116 @@ export function Telemetry({
   useEffect(() => {
     let active = true;
     setDetail(undefined);
+    setDetailError("");
     if (selected)
       void action(getTelemetryDetail(selected))
         .then((d) => {
           if (active) setDetail(d);
         })
         .catch((e) => {
-          if (active) setError(e.message);
+          if (active) setDetailError(e.message);
         });
     return () => {
       active = false;
     };
   }, [selected, refresh]);
   return (
-    <div className="telemetry-view">
-      <div className="filterbar">
-        <select
-          className="text-input"
-          aria-label="Telemetry project"
-          value={project || ""}
-          onChange={(e) =>
-            update({ project: e.target.value, offset: null, record: null })
-          }
-        >
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <input
-          className="text-input"
-          aria-label="Search telemetry"
-          placeholder="Search…"
-          value={q}
-          onChange={(e) => update({ q: e.target.value, offset: null }, true)}
-        />
-        {view === "profiles" && (
+    <div
+      className={`telemetry-view section-workspace${selected ? " has-selection" : ""}`}
+    >
+      <section
+        className="section-list-pane"
+        aria-label={`${telemetryViews[view].title} list`}
+      >
+        <div className="filterbar">
           <select
             className="text-input"
-            aria-label="Profile type"
-            value={params.get("profileType") || "continuous"}
+            aria-label="Telemetry project"
+            value={project || ""}
             onChange={(e) =>
-              update({
-                profileType: e.target.value,
-                offset: null,
-                record: null,
-              })
+              update({ project: e.target.value, offset: null, record: null })
             }
           >
-            <option value="continuous">Continuous profiles</option>
-            <option value="transaction">Transaction profiles</option>
+            <option value="">All projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
-        )}
-        <button
-          className="button"
-          aria-label="Refresh telemetry"
-          onClick={() => setRefresh((n) => n + 1)}
-        >
-          <RefreshCw size={16} />
-        </button>
-      </div>
-      {(trace || event) && (
-        <p className="telemetry-filter">
-          {trace ? `Trace ${trace}` : `Event ${event}`}{" "}
-          <AppLink
-            href={href({ trace: null, relatedEvent: null, offset: null })}
-          >
-            Clear filter
-          </AppLink>
-        </p>
-      )}
-      {error && (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
-      )}
-      {selected ? (
-        <>
-          <AppLink className="button" href={href({ record: null })}>
-            <ArrowLeft size={15} />
-            Back to list
-          </AppLink>
-          {detail && (
-            <RecordDetail row={detail.row} processing={detail.processing} />
+          <input
+            className="text-input"
+            aria-label="Search telemetry"
+            placeholder="Search…"
+            value={q}
+            onChange={(e) => update({ q: e.target.value, offset: null }, true)}
+          />
+          {view === "profiles" && (
+            <select
+              className="text-input"
+              aria-label="Profile type"
+              value={params.get("profileType") || "continuous"}
+              onChange={(e) =>
+                update({
+                  profileType: e.target.value,
+                  offset: null,
+                  record: null,
+                })
+              }
+            >
+              <option value="continuous">Continuous profiles</option>
+              <option value="transaction">Transaction profiles</option>
+            </select>
           )}
-        </>
-      ) : (
-        <section className="telemetry-card">
-          <div className="telemetry-table-wrap">
-            <table className="telemetry-table">
-              <thead>
-                <tr>
-                  <th>{view === "logs" ? "Message" : "Name"}</th>
-                  <th>Project</th>
-                  <th>{view === "transactions" ? "Duration" : "Size"}</th>
-                  <th>Received</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <AppLink href={href({ record: row.id })}>
-                        {row.name}
-                      </AppLink>
-                      {row.environment && <small>{row.environment}</small>}
-                    </td>
-                    <td>
-                      {projects.find((p) => p.id === row.project_id)?.name}
-                    </td>
-                    <td>
-                      {view === "transactions"
-                        ? `${row.duration.toFixed(1)} ms`
-                        : `${(row.size / 1024).toFixed(1)} KB`}
-                    </td>
-                    <td>{relative(row.received_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <button
+            className="button"
+            aria-label="Refresh telemetry"
+            onClick={() => setRefresh((n) => n + 1)}
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
+        {(trace || event) && (
+          <p className="telemetry-filter">
+            {trace ? `Trace ${trace}` : `Event ${event}`}{" "}
+            <AppLink
+              href={href({ trace: null, relatedEvent: null, offset: null })}
+            >
+              Clear filter
+            </AppLink>
+          </p>
+        )}
+        {error && (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="telemetry-card">
+          <div className="telemetry-record-list">
+            {list.rows.map((row) => (
+              <AppLink
+                key={row.id}
+                className={`telemetry-record-row${selected === row.id ? " is-selected" : ""}`}
+                aria-current={selected === row.id ? "true" : undefined}
+                href={href({ record: row.id })}
+              >
+                <strong>{row.name}</strong>
+                <span className="telemetry-record-meta">
+                  <span>
+                    {projects.find((p) => p.id === row.project_id)?.name}
+                  </span>
+                  {row.environment && <span>{row.environment}</span>}
+                </span>
+                <span className="telemetry-record-meta">
+                  <span>
+                    {view === "transactions"
+                      ? `${row.duration.toFixed(1)} ms`
+                      : `${(row.size / 1024).toFixed(1)} KB`}
+                  </span>
+                  <span>{relative(row.received_at)}</span>
+                </span>
+              </AppLink>
+            ))}
           </div>
           {!list.rows.length && (
             <div className="empty-state">
@@ -225,8 +220,48 @@ export function Telemetry({
               </button>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
+      <section
+        className="section-detail-pane"
+        aria-label={`${telemetryViews[view].title} details`}
+      >
+        {selected ? (
+          <>
+            <div className="section-detail-header">
+              <AppLink
+                className="button section-detail-back"
+                href={href({ record: null })}
+              >
+                <ArrowLeft size={15} />
+                Back to list
+              </AppLink>
+            </div>
+            {detailError ? (
+              <p className="error-banner" role="alert">
+                {detailError}
+              </p>
+            ) : detail ? (
+              <RecordDetail
+                key={detail.row.id}
+                row={detail.row}
+                processing={detail.processing}
+              />
+            ) : (
+              <div className="empty-state" role="status">
+                <Activity size={28} />
+                <h2>Loading record…</h2>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="empty-state section-detail-empty">
+            <Activity size={32} />
+            <h2>Select a {view === "logs" ? "log" : "record"}</h2>
+            <p>Choose an item from the list to view its details.</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -259,10 +294,12 @@ function RecordDetail({
               className="button"
               href={href({
                 view: "transactions",
+                project: row.project_id,
                 trace: row.trace_id,
                 record: null,
                 offset: null,
                 relatedEvent: null,
+                q: null,
               })}
             >
               Trace transactions
@@ -271,10 +308,12 @@ function RecordDetail({
               className="button"
               href={href({
                 view: "logs",
+                project: row.project_id,
                 trace: row.trace_id,
                 record: null,
                 offset: null,
                 relatedEvent: null,
+                q: null,
               })}
             >
               Trace logs

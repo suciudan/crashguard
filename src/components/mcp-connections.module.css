@@ -1,0 +1,124 @@
+.workspace {
+  gap: 20px;
+  min-width: 0;
+}
+.workspace p {
+  color: var(--cg-text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 7px 0 0;
+}
+.card {
+  min-width: 0;
+}
+.card h2 {
+  font-size: 14px;
+  font-weight: 550;
+}
+.clientTabs {
+  margin: 16px 0 20px;
+}
+.clientTabs button:focus-visible {
+  outline: 2px solid var(--cg-primary);
+  outline-offset: 4px;
+}
+.form {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.form label {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+  font-size: 13px;
+}
+.form input {
+  width: 100%;
+}
+.card pre {
+  padding: 18px;
+  background: var(--cg-bg-muted);
+  border: 1px solid var(--cg-border);
+  border-radius: 6px;
+  margin: 18px 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.token {
+  background: #0a2230;
+  border: 1px solid #28536a;
+  border-radius: 8px;
+  padding: 18px;
+  margin-top: 20px;
+}
+.token strong {
+  font-size: 14px;
+}
+.tokenLabel {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.token textarea {
+  color: #dceafa;
+  background: #080d19;
+  font-family: monospace;
+  padding: 12px;
+  resize: none;
+  width: 100%;
+  border: 1px solid #28536a;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.prompt {
+  margin-top: 20px;
+  border-left: 2px solid #51a2ff;
+  padding-left: 15px;
+  font-size: 14px;
+  color: #c5d4e9;
+  line-height: 1.6;
+}
+.list {
+  list-style: none;
+  padding: 0;
+}
+.list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.list li:last-child {
+  border: 0;
+  padding-bottom: 0;
+}
+.list strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.list p {
+  font-size: 12px;
+  margin-bottom: 0;
+}
+.notice:empty {
+  display: none;
+}
+@media (max-width: 600px) {
+  .list li {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

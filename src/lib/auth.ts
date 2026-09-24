@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "./db";
+import type { Account } from "./access";
 
 export const SESSION_COOKIE = "cg_session";
 export const CHALLENGE_COOKIE = "cg_challenge";
@@ -8,9 +9,7 @@ export const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 export function authOrigin() {
   const url = new URL(
-    process.env.AUTH_ORIGIN ||
-      process.env.APP_URL ||
-      "http://localhost:5000",
+    process.env.AUTH_ORIGIN || process.env.APP_URL || "http://localhost:5000",
   );
   if (
     (url.protocol !== "https:" &&
@@ -55,10 +54,14 @@ export function session(request: { cookies: CookieReader }) {
   return (
     (db()
       .prepare(
-        "SELECT * FROM auth_sessions WHERE token_hash = ? AND expires_at > ?",
+        "SELECT s.*, a.id AS account_id, a.name AS account_name, a.role, a.user_handle FROM auth_sessions s JOIN account_passkeys k ON k.credential_id=s.credential_id JOIN accounts a ON a.id=k.account_id WHERE s.token_hash = ? AND s.expires_at > ?",
       )
       .get(hashToken(token), Date.now()) as
-      | { token_hash: string; credential_id: string; expires_at: number }
+      | (Account & {
+          token_hash: string;
+          credential_id: string;
+          expires_at: number;
+        })
       | undefined) || null
   );
 }
@@ -83,12 +86,14 @@ export type Challenge = {
   kind: string;
   session_hash: string | null;
   expires_at: number;
+  data?: string;
 };
 export function saveChallenge(
   jar: CookieWriter,
   challenge: string,
   kind: string,
   sessionHash: string | null,
+  data?: unknown,
 ) {
   const token = randomBytes(32).toString("hex");
   db().transaction(() => {
@@ -114,6 +119,10 @@ export function saveChallenge(
         sessionHash,
         Date.now() + 5 * 60 * 1000,
       );
+    if (data !== undefined)
+      db()
+        .prepare("INSERT INTO auth_enrollments(token_hash,data) VALUES (?,?)")
+        .run(hashToken(token), JSON.stringify(data));
   })();
   jar.set(CHALLENGE_COOKIE, token, cookieOptions(300));
 }
@@ -123,8 +132,18 @@ export function takeChallenge(
 ) {
   const token = request.cookies.get(CHALLENGE_COOKIE)?.value || "";
   const result = db()
-    .prepare("DELETE FROM auth_challenges WHERE token_hash = ? RETURNING *")
-    .get(hashToken(token)) as Challenge | undefined;
+    .transaction(() => {
+      const row = db()
+        .prepare(
+          "SELECT c.*, e.data FROM auth_challenges c LEFT JOIN auth_enrollments e ON e.token_hash=c.token_hash WHERE c.token_hash=?",
+        )
+        .get(hashToken(token)) as Challenge | undefined;
+      db()
+        .prepare("DELETE FROM auth_challenges WHERE token_hash=?")
+        .run(hashToken(token));
+      return row;
+    })
+    .immediate();
   if (!result || result.kind !== kind || result.expires_at <= Date.now())
     throw new Error(
       "This request expired or was already used. Please try again.",
