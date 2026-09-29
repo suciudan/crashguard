@@ -1,6 +1,6 @@
 # Connect Codex or Claude to CrashGuard
 
-CrashGuard exposes a read-only MCP server at **`/api/mcp`** on your existing
+CrashGuard exposes an MCP server at **`/api/mcp`** on your existing
 CrashGuard host. It uses Streamable HTTP with bearer token authentication; no
 separate service or port is required.
 
@@ -92,6 +92,7 @@ See the [official Claude Code MCP guide](https://code.claude.com/docs/en/mcp#env
 | `search_issues` | Search title, culprit, or project name; filter project, status, environment, release, and 24/168/720-hour window; sort recent/frequency |
 | `get_issue`     | Issue metadata and paginated event occurrences across its full history                                                                  |
 | `get_event`     | One occurrence with source-mapped stack traces, breadcrumbs, tags, and context                                                          |
+| `resolve_issue` | Mark an accessible issue as resolved using its numeric `issue_id`; returns the status and dashboard URL                                 |
 
 Search defaults to unresolved issues received in the last 24 hours. Issue and
 occurrence pages contain at most 30 results; pass `next_offset` back as `offset`.
@@ -99,17 +100,24 @@ Event lookup requires both `issue_id` and the 32-character `event_id`. Large eve
 payloads are bounded and include `truncated: true`; the returned dashboard URL
 opens the full event.
 
+To resolve an issue, call `resolve_issue` with `{"issue_id": 123}` for **CG-123**.
+Calling it again on an already-resolved issue succeeds. Event history is preserved,
+and a new event automatically reopens the issue. For example: **“Mark CrashGuard
+issue CG-123 as resolved.”** Reconnect your assistant after updating CrashGuard to
+refresh its tool list; existing tokens can use the new tool.
+
 ## Access and lifecycle
 
 - Each token follows its creator's **current** project access. Owner tokens can
-  read all projects; member tokens can read only projects they belong to.
+  read and resolve issues in all projects; member tokens can do so only in projects
+  they belong to.
 - Removing membership takes effect on the next tool call. Tokens require the
   account to retain at least one passkey.
 - **MCP → Revoke** immediately disables a token, including for an
   already-connected client. Each account can have at most 20 active tokens.
 - Workspace passkey recovery also revokes all MCP tokens.
-- Tokens grant read access only. MCP offers no resolve, delete, or management
-  tools. Public SDK keys and dashboard session cookies do not authorize MCP.
+- Tokens grant read access and issue resolution. MCP offers no delete or project
+  management tools. Public SDK keys and dashboard session cookies do not authorize MCP.
 - Responses are not cached. Requests are capped at 64 KiB and 120 per minute per
   token. A rate-limited request returns `429` with `Retry-After: 60`.
 - Native clients may omit `Origin`. Browser requests from other origins are

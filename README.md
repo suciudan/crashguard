@@ -78,7 +78,7 @@ Initialize the SDK before your application code. Framework SDKs use their normal
 
 ## Features
 
-Connect **Codex or Claude Code** through **MCP** to search issues and inspect error events with a read-only MCP token. See [MCP setup](docs/mcp.md).
+Connect **Codex or Claude Code** through **MCP** to search issues, inspect error events, and mark issues as resolved with an MCP token. See [MCP setup](docs/mcp.md).
 
 | Area                         | Support                                                                                        |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- |

@@ -191,12 +191,24 @@ test("real MCP client initializes and reads projects, filtered issues and symbol
       "get_event",
       "get_issue",
       "list_projects",
+      "resolve_issue",
       "search_issues",
     ]);
     assert.ok(
-      tools.tools.every(
-        (t) => t.annotations?.readOnlyHint && !t.annotations?.destructiveHint,
-      ),
+      tools.tools
+        .filter((t) => t.name !== "resolve_issue")
+        .every(
+          (t) => t.annotations?.readOnlyHint && !t.annotations?.destructiveHint,
+        ),
+    );
+    assert.deepEqual(
+      tools.tools.find((t) => t.name === "resolve_issue")?.annotations,
+      {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     );
     const listed = await call(client, "list_projects");
     assert.deepEqual(
@@ -371,4 +383,123 @@ test("workspace recovery revokes MCP tokens and preserves errors", async () => {
     36,
   );
   restored.close();
+});
+
+test("resolution rejects invalid IDs, inaccessible issues, lost membership and revoked tokens without changing data", async () => {
+  const created = token(member);
+  const client = await connect(created.token);
+  const before = db().prepare("SELECT * FROM issues ORDER BY id").all();
+  try {
+    for (const issue_id of [
+      privateIssue.id,
+      999999,
+      -1,
+      0,
+      1.5,
+      "1",
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      const result = await client.callTool({
+        name: "resolve_issue",
+        arguments: { issue_id },
+      });
+      assert.equal(result.isError, true);
+      if (issue_id === privateIssue.id || issue_id === 999999)
+        assert.deepEqual(result.content, [
+          { type: "text", text: "Issue not found or access denied." },
+        ]);
+    }
+    assert.equal(
+      (await client.callTool({ name: "resolve_issue", arguments: {} })).isError,
+      true,
+    );
+    db()
+      .prepare("DELETE FROM project_members WHERE account_id=?")
+      .run(member.account_id);
+    assert.equal(
+      (
+        await client.callTool({
+          name: "resolve_issue",
+          arguments: { issue_id: issue.id },
+        })
+      ).isError,
+      true,
+    );
+    db()
+      .prepare("INSERT INTO project_members VALUES(?,?,0)")
+      .run(visible.id, member.account_id);
+    withAccount(member, () => revokeMcpToken(created.id));
+    await assert.rejects(() =>
+      client.callTool({
+        name: "resolve_issue",
+        arguments: { issue_id: issue.id },
+      }),
+    );
+    assert.deepEqual(
+      db().prepare("SELECT * FROM issues ORDER BY id").all(),
+      before,
+    );
+  } finally {
+    db()
+      .prepare("INSERT OR IGNORE INTO project_members VALUES(?,?,0)")
+      .run(visible.id, member.account_id);
+    await client.close();
+  }
+});
+
+test("members and owners resolve accessible issues, retries preserve history, and new events reopen them", async () => {
+  const memberClient = await connect(token(member).token);
+  const ownerClient = await connect(token().token);
+  try {
+    const eventsBefore = db().prepare("SELECT * FROM events ORDER BY id").all();
+    const expected = {
+      issue_id: issue.id,
+      status: "resolved",
+      url: `http://localhost:5000/?view=issues&issue=${issue.id}`,
+    };
+    assert.deepEqual(
+      await call(memberClient, "resolve_issue", { issue_id: issue.id }),
+      expected,
+    );
+    assert.deepEqual(
+      await call(memberClient, "resolve_issue", { issue_id: issue.id }),
+      expected,
+    );
+    assert.equal(
+      (await call(memberClient, "get_issue", { issue_id: issue.id })).issue
+        .status,
+      "resolved",
+    );
+    assert.equal((await call(memberClient, "search_issues")).total, 0);
+    assert.equal(
+      (await call(memberClient, "search_issues", { status: "resolved" })).total,
+      1,
+    );
+    assert.equal(
+      (await call(ownerClient, "resolve_issue", { issue_id: privateIssue.id }))
+        .status,
+      "resolved",
+    );
+    assert.equal(
+      (await call(ownerClient, "get_issue", { issue_id: privateIssue.id }))
+        .issue.status,
+      "resolved",
+    );
+    assert.deepEqual(
+      db().prepare("SELECT * FROM events ORDER BY id").all(),
+      eventsBefore,
+    );
+    saveEvents(visible.id, [
+      { message: "Checkout failed again", fingerprint: ["checkout"] },
+    ]);
+    assert.equal(
+      (await call(memberClient, "get_issue", { issue_id: issue.id })).issue
+        .status,
+      "unresolved",
+    );
+    assert.equal((await call(memberClient, "search_issues")).total, 1);
+  } finally {
+    await memberClient.close();
+    await ownerClient.close();
+  }
 });
