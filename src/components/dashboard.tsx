@@ -783,7 +783,7 @@ export default function Dashboard() {
                 {view === "mcp" && (
                   <p>
                     Connect Codex or Claude to your errors, stack traces, and breadcrumbs.
-                    Read-only access to your projects.
+                    Inspect errors and resolve issues in your projects.
                   </p>
                 )}
               </div>

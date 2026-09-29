@@ -85,7 +85,8 @@ export function McpConnections() {
             <h2 id="new-connection">1. Create a token</h2>
             <p>
               Use a separate token for each assistant. Tokens expire after 90
-              days and can be revoked at any time.
+              days and can be revoked at any time. Assistants can read errors
+              and mark issues as resolved in projects you can access.
             </p>
             <form
               className={styles.form}

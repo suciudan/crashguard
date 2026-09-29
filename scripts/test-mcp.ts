@@ -86,9 +86,7 @@ async function main() {
     await page
       .getByRole("button", { name: "Create passkey", exact: true })
       .click();
-    await page
-      .getByRole("link", { name: "MCP", exact: true })
-      .click();
+    await page.getByRole("link", { name: "MCP", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "MCP", exact: true }),
     ).toBeVisible();
@@ -111,7 +109,7 @@ async function main() {
       }),
     );
     const tools = await client.listTools();
-    assert.equal(tools.tools.length, 4);
+    assert.equal(tools.tools.length, 5);
     const search = await client.callTool({
       name: "search_issues",
       arguments: {},
@@ -121,6 +119,23 @@ async function main() {
       (search.structuredContent as Record<string, unknown> | undefined)?.total,
       1,
     );
+    const issueId = (search.structuredContent as { issues: { id: number }[] })
+      .issues[0].id;
+    const resolved = await client.callTool({
+      name: "resolve_issue",
+      arguments: { issue_id: issueId },
+    });
+    assert.ok(!resolved.isError);
+    assert.equal(
+      (resolved.structuredContent as Record<string, unknown> | undefined)?.status,
+      "resolved",
+    );
+    await page.goto(`${base}/?view=issues&status=resolved&issue=${issueId}`);
+    await expect(page.locator(".issue-list-row")).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Reopen issue", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "MCP", exact: true }).click();
     await page.reload();
     await expect(
       page.getByRole("button", { name: "Revoke Codex integration test" }),
@@ -157,7 +172,7 @@ async function main() {
     assert.equal(anonymous.status, 401);
     assert.deepEqual(errors, []);
     console.log(
-      "MCP browser + HTTP checks passed: passkey enrollment, token creation, real client tools, desktop/mobile layout, one-time secret display, and revocation.",
+      "MCP browser + HTTP checks passed: passkey enrollment, token creation, real client tools, issue resolution reflected in the dashboard, desktop/mobile layout, one-time secret display, and revocation.",
     );
   } catch (error) {
     console.error(log);
