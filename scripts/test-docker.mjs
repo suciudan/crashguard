@@ -75,12 +75,19 @@ try {
     .click();
   await page.waitForURL(base + "/");
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  const setupNavigation = page.getByRole("navigation", {
+    name: "Setup and integrations",
+  });
   await expect(navigation.getByRole("link")).toHaveText([
     "Dashboard",
     "Issues",
     "Members",
     "Projects",
+  ]);
+  await expect(setupNavigation.getByRole("link")).toHaveText([
+    "Notifications",
     "SDK setup",
+    "MCP",
   ]);
   await expect(
     page.getByLabel("Navigate workspace").locator("option"),
@@ -88,6 +95,8 @@ try {
     "Dashboard",
     "Issues",
     "Members",
+    "MCP",
+    "Notifications",
     "Projects",
     "Connect your app",
   ]);
@@ -133,11 +142,20 @@ try {
   await expect(
     page.getByRole("region", { name: "Event overview" }),
   ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Close filters", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Issue filters", exact: true }),
+  ).toHaveAttribute("aria-expanded", "false");
   await page.goBack();
   await expect(
     page.getByRole("region", { name: "Event overview" }),
   ).toBeVisible();
   await page.goForward();
+  await expect(
+    page.getByRole("heading", { name: "Issues", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Issue filters", exact: true })
     .click();
@@ -146,8 +164,11 @@ try {
   ).toBeVisible();
   await navigation.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByRole("button", { name: "New project", exact: true }).click();
-  await page.getByLabel("Project name").fill("Container persistence check");
-  await page
+  const projectDialog = page.getByRole("dialog");
+  await projectDialog
+    .getByLabel("Project name")
+    .fill("Container persistence check");
+  await projectDialog
     .getByRole("button", { name: "Create project", exact: true })
     .click();
   await expect(
@@ -165,11 +186,20 @@ try {
   await expect(
     page.getByRole("heading", { name: "Upload source map" }),
   ).toBeVisible();
-  await navigation
+  await expect(
+    navigation.getByRole("link", { name: "Source maps", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Navigate workspace").locator('option[value="sourcemaps"]'),
+  ).toHaveCount(1);
+  await setupNavigation
     .getByRole("link", { name: "SDK setup", exact: true })
     .click();
   await expect(
     navigation.getByRole("link", { name: "Source maps", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByLabel("Navigate workspace").locator('option[value="sourcemaps"]'),
   ).toHaveCount(0);
   const logResponse = await fetch(
     `${base}/api/${app.id}/envelope/?sentry_key=${app.public_key}`,

@@ -12,9 +12,18 @@ python3 -B -m unittest discover -s tests -p 'test_*.py' -v
 npx next typegen
 npm run typecheck
 npm run build
+npm run test:sdk:isolated
 ```
 
-`npm test` uses temporary databases to verify authentication, ingestion, validation, grouping, telemetry, source maps, and webhook delivery. It does not need a running server. Deployment tests use temporary SQLite databases and a simulated Docker command to verify backup and failure handling. GitHub Actions runs these checks on hosted runners for pull requests and before production image builds. Coverage reporting and thresholds are not configured.
+`npm test` uses temporary databases to verify authentication, ingestion, validation, grouping, telemetry, source maps, and webhook delivery. It does not need a running server. Deployment tests use temporary SQLite databases and a simulated Docker command to verify backup and failure handling. GitHub Actions runs these checks on hosted runners for pull requests and before production image builds. After the production build, it also runs the real Node SDK smoke test described below. Coverage reporting and thresholds are not configured.
+
+## Isolated Node SDK smoke test
+
+Run `npm run build && npm run test:sdk:isolated` to exercise the built application over HTTP with the real `@sentry/node` SDK. This needs no browser, passkey enrollment, or existing server. The runner starts its own production server on an available loopback port, creates a fresh database in `test-results/sdk-*/`, waits for its health route, and runs `test:sdk`. It overrides database and origin settings so an existing workspace database is never used.
+
+The check reads persisted events back from the disposable database and verifies both SDK event IDs, exception and message contents, source stack frames, severity, environment, release, user, tags, and breadcrumbs. The runner fails on server startup, delivery, or assertion errors, prints server logs on failure, and stops its child processes and removes the database afterward, including on SIGINT/SIGTERM. Readiness has a 30-second limit and the complete test has a 90-second limit. This is a required CI check after every successful build.
+
+It also runs the README's Node example against the disposable project, verifies that its reported event and metadata were stored, and checks that an invalid project key exits with an error instead of reporting successful delivery.
 
 ## SDK and browser tests
 
@@ -49,7 +58,7 @@ Fixtures require `TEST_DATABASE_PATH` to resolve inside `test-results/`. For Doc
 | Command           | Checks                                                                            |
 | ----------------- | --------------------------------------------------------------------------------- |
 | `test:passkeys`   | Enrollment, sign-in, authorization, revocation, and backup keys                   |
-| `test:sdk`        | Real Node SDK error ingestion                                                     |
+| `test:sdk`        | Real Node SDK exception/message ingestion and persisted event details             |
 | `test:browser`    | Browser SDK capture and dashboard workflows                                       |
 | `test:links`      | Navigation, history, occurrence URLs, and missing records                         |
 | `test:telemetry`  | Real SDK transactions, logs, attachments, profiles, replay, and source-map upload |

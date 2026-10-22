@@ -2,39 +2,57 @@
 
 # CrashGuard
 
-Self-hosted monitoring for frontend and backend apps, using official Sentry SDKs.
+Self-hosted error tracking using Sentry SDKs, with SQLite storage and built-in MCP for coding assistants. MIT licensed.
 
 **Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · SQLite**
 
-## Screenshots
+![CrashGuard issue details showing a stack trace and source context](screenshots/issue-details.png)
 
 Explore the [dashboard](screenshots/dashboard.png) for event activity and summary metrics, the [issue list](screenshots/issues.png) for filtering and managing errors, and [issue details](screenshots/issue-details.png) for stack traces and source context. All screenshots use illustrative data from a local demo workspace.
 
+**Compatibility:** CrashGuard accepts supported Sentry **envelopes**. Sentry management APIs, `sentry-cli` release/source-map uploads, and legacy `/store/` ingestion are outside its scope. See the [compatibility details](docs/operations.md#sdk-compatibility) before migrating.
+
 ## Quick start
 
-Requires **Node.js 22.13+** (24 recommended) and npm. Run these commands from the checkout; use WSL for a WSL-hosted project.
+Requires **Git, Node.js 22.13+** (24 recommended), npm, and a browser with passkey support. These commands use Bash on Linux, macOS, or WSL. For a container install, use [Docker](#docker).
 
 ```bash
+git clone https://github.com/suciudan/crashguard.git
+cd crashguard
 npm ci
 cp -n .env.example .env.local
-npm run dev
+npm run dev -- --hostname 127.0.0.1
 ```
 
-Open [localhost:5000](http://localhost:5000), create your first passkey, then create a project. **SDK setup** provides your DSN and a button to send a test event.
+1. Open [localhost:5000](http://localhost:5000) on this machine and create your first passkey (the workspace owner).
+2. Open **Projects → New project**, name it, and create it. **SDK setup** displays its DSN.
+3. In a second terminal in the checkout, send an actual Node SDK exception using the copied DSN:
+
+   ```bash
+   npm run example:error -- 'http://PROJECT_PUBLIC_KEY@localhost:5000/PROJECT_ID'
+   ```
+
+4. Open **Issues** and select **Hello from CrashGuard**. Inspect its stack trace, `first-run` environment, and `example=node` tag. The example prints the event ID so you can identify the occurrence.
+
+**SDK setup** also has a test-event button for checking ingestion without a Node application. Next, [connect your own app](#connect-your-app) or [connect an assistant through MCP](docs/mcp.md).
 
 If SQLite's native module fails to build on Ubuntu, install `build-essential` and `python3`, then rerun `npm ci`.
 
 ## Docker
 
-SQLite stays on the host. Stop the local server first if it uses the same port and database.
+Requires Git and Docker with Compose v2.20+ on Linux/WSL or Docker Desktop. This builds the current checkout. Stop the local server first if it uses the same port and database.
 
 ```bash
+git clone https://github.com/suciudan/crashguard.git
+cd crashguard
 cp -n .env.example .env.local
 mkdir -p data
-docker compose --env-file .env.local up -d --build
+# Linux/WSL: run as your regular user and match the data directory's owner.
+export CRASHGUARD_UID=$(id -u) CRASHGUARD_GID=$(id -g)
+docker compose --env-file .env.local up -d --build --wait
 ```
 
-Open [localhost:5000](http://localhost:5000). The mount is:
+Open [localhost:5000](http://localhost:5000), enroll a passkey, create a project, and use **SDK setup → Send a test from this browser**. Open the resulting issue in **Issues**. SQLite stays on the host:
 
 ```text
 ./data/crashguard.sqlite → /app/data/crashguard.sqlite
@@ -48,6 +66,10 @@ docker compose --env-file .env.local down
 ```
 
 See [deployment and storage](docs/operations.md#deployment-and-storage) for permissions, backups, and native crash processing.
+
+Before using a remote server, configure a stable HTTPS hostname and `APP_URL`; passkeys only allow plain HTTP on localhost. Bind to loopback behind your reverse proxy and restrict access until the first owner is enrolled. `localhost` in an application's DSN refers to **that application's machine**.
+
+Back up the full data directory while the service is stopped, or use SQLite's online backup API. **There is no automatic retention**: monitor disk growth, especially with replay, profiles, and attachments.
 
 For GitHub Actions deployment to a VPS with a self-hosted runner, follow the [production setup](docs/deployment.md). It includes image builds, deployment approval, and SQLite backups.
 
@@ -80,15 +102,15 @@ Initialize the SDK before your application code. Framework SDKs use their normal
 
 Connect **Codex or Claude Code** through **MCP** to search issues, inspect error events, and mark issues as resolved with an MCP token. See [MCP setup](docs/mcp.md).
 
-| Area                         | Support                                                                                        |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| Area                         | Support                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Issues                       | Complete paginated history, custom date ranges, grouping, search, resolve/reopen/ignore, stack traces, breadcrumbs, and event context |
-| Performance & logs           | Transactions, span timelines, structured logs, and trace correlation                           |
-| Replay & profiles            | DOM replay with playback controls; transaction and continuous sampled profiles                 |
-| Attachments & native crashes | Binary downloads; minidump processing through optional Symbolicator                            |
-| Releases & source maps       | Release tracking and source-map uploads through the UI                                         |
-| Alerts                       | Signed webhooks plus browser/Android push for new and reopened errors, with persistent delivery queues |
-| Android app                  | Installable PWA, home screen icon, standalone window, and an offline fallback |
+| Performance & logs           | Transactions, span timelines, structured logs, and trace correlation                                                                  |
+| Replay & profiles            | DOM replay with playback controls; transaction and continuous sampled profiles                                                        |
+| Attachments & native crashes | Binary downloads; minidump processing through optional Symbolicator                                                                   |
+| Releases & source maps       | Release tracking and source-map uploads through the UI                                                                                |
+| Alerts                       | Signed webhooks plus browser/Android push for new and reopened errors, with persistent delivery queues                                |
+| Android app                  | Installable PWA, home screen icon, standalone window, and an offline fallback                                                         |
 
 SDK ingestion uses `POST /api/:projectId/envelope/`. Sentry management and `sentry-cli` release/upload APIs are not implemented.
 
@@ -111,7 +133,7 @@ Copy [.env.example](.env.example) to `.env.local`.
 | Variable              | Default / purpose                                                    |
 | --------------------- | -------------------------------------------------------------------- |
 | `DATABASE_PATH`       | `./data/crashguard.sqlite` for local runs                            |
-| `APP_URL`            | Server-only runtime origin; the example uses `http://localhost:5000` |
+| `APP_URL`             | Server-only runtime origin; the example uses `http://localhost:5000` |
 | `AUTH_ORIGIN`         | Defaults to the public URL; used for passkeys and dashboard requests |
 | `INGEST_RATE_LIMIT`   | `120` requests per project per minute                                |
 | `CRASHGUARD_DATA_DIR` | `./data` — host storage directory for Docker                         |
@@ -137,7 +159,7 @@ npm run typecheck
 npm run build
 ```
 
-GitHub Actions runs tests, type checks, and a production build. Real SDK, browser, passkey, replay, native-crash, and Docker checks are available separately. See [testing](docs/testing.md) for commands. Coverage percentages are not configured yet.
+GitHub Actions runs tests, type checks, a production build, and a real Node SDK smoke test against an isolated instance. Browser, passkey, replay, native-crash, and Docker checks are available separately. See [testing](docs/testing.md) for commands. Coverage percentages are not configured yet.
 
 | Path                       | Purpose                                                          |
 | -------------------------- | ---------------------------------------------------------------- |

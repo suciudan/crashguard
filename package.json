@@ -12,6 +12,8 @@
     "test:mcp": "tsx scripts/test-mcp.ts",
     "test:scroll": "tsx scripts/test-issue-scroll.ts",
     "test:sdk": "tsx scripts/test-sdk.ts",
+    "test:sdk:isolated": "tsx scripts/test-sdk-isolated.ts",
+    "example:error": "node examples/node/capture-error.mjs",
     "test:telemetry": "tsx scripts/test-telemetry-sdk.ts",
     "test:operations": "tsx scripts/test-operations.ts",
     "test:replay": "tsx scripts/test-replay-isolation.ts",

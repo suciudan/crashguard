@@ -36,3 +36,5 @@ jobs:
       - run: npx next typegen
       - run: npm run typecheck
       - run: npm run build
+      - name: Real Node SDK smoke test
+        run: npm run test:sdk:isolated
