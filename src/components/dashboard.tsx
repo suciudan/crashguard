@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowRight,
   ArrowUpRight,
+  Bell,
   BookOpen,
   Box,
   Check,
@@ -47,6 +48,8 @@ import { Telemetry, telemetryViews } from "./telemetry";
 import { Operations } from "./operations";
 import { MembersWorkspace } from "./invitations";
 import { McpConnections } from "./mcp-connections";
+import { Notifications } from "./notifications";
+import historyStyles from "./issue-history.module.css";
 export default function Dashboard() {
   const { params, href, update } = useAppNavigation();
   const view =
@@ -58,6 +61,7 @@ export default function Dashboard() {
             "projects",
             "members",
             "mcp",
+            "notifications",
             "setup",
             "releases",
             "sourcemaps",
@@ -69,9 +73,24 @@ export default function Dashboard() {
   const project = params.get("project") || "";
   const environment = params.get("environment") || "";
   const release = params.get("release") || "";
-  const hours = ["24", "168", "720"].includes(params.get("hours") || "")
+  const hours = [
+    "24",
+    "168",
+    "720",
+    ...(view === "issues" ? ["all", "custom"] : []),
+  ].includes(params.get("hours") || "")
     ? params.get("hours")!
-    : "24";
+    : view === "dashboard"
+      ? "24"
+      : "all";
+  const from = hours === "custom" ? params.get("from") || "" : "";
+  const to = hours === "custom" ? params.get("to") || "" : "";
+  const [dateFrom, setDateFrom] = useState(from);
+  const [dateTo, setDateTo] = useState(to);
+  useEffect(() => {
+    setDateFrom(from);
+    setDateTo(to);
+  }, [from, to]);
   const status = ["unresolved", "resolved", "ignored", "all"].includes(
     params.get("status") || "",
   )
@@ -115,11 +134,13 @@ export default function Dashboard() {
   const filter = (key: string, value: string) =>
     update({ [key]: value, offset: null });
   const setQuery = (value: string) => update({ q: value, offset: null }, true);
-  const issueHref = (id: number) => href({ issue: id, event: null, tab: null });
+  const issueHref = (id: number) =>
+    href({ issue: id, event: null, eventOffset: null, tab: null });
   const sectionHref = (changes: Record<string, string | number | null>) =>
     href({
       issue: null,
       event: null,
+      eventOffset: null,
       tab: null,
       record: null,
       projectDetail: null,
@@ -169,7 +190,18 @@ export default function Dashboard() {
   const issueListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (issueListRef.current) issueListRef.current.scrollTop = 0;
-  }, [offset, project, environment, release, hours, status, search, sort]);
+  }, [
+    offset,
+    project,
+    environment,
+    release,
+    hours,
+    from,
+    to,
+    status,
+    search,
+    sort,
+  ]);
   const listFocus = useRef<HTMLElement | null>(null);
   const hasData = Boolean(data);
   const paneSelection =
@@ -234,6 +266,8 @@ export default function Dashboard() {
           environment,
           release,
           hours,
+          from,
+          to,
           status,
           q: search,
           sort,
@@ -247,7 +281,18 @@ export default function Dashboard() {
     } catch (e) {
       if (version === latest.current) setError((e as Error).message);
     }
-  }, [project, environment, release, hours, status, search, sort, offset]);
+  }, [
+    project,
+    environment,
+    release,
+    hours,
+    from,
+    to,
+    status,
+    search,
+    sort,
+    offset,
+  ]);
   useEffect(() => {
     void load();
     const timer = setInterval(load, 10000);
@@ -289,6 +334,7 @@ export default function Dashboard() {
     issues: "Issues",
     members: "Members",
     mcp: "MCP",
+    notifications: "Notifications",
     projects: "Projects",
     setup: "Connect your app",
     releases: "Releases",
@@ -344,11 +390,24 @@ export default function Dashboard() {
       <select
         aria-label="Time range"
         value={hours}
-        onChange={(e) => filter("hours", e.target.value)}
+        onChange={(e) => {
+          const custom = e.target.value === "custom";
+          update({
+            hours: e.target.value,
+            offset: null,
+            from: custom
+              ? from ||
+                new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+              : null,
+            to: custom ? to || new Date().toISOString().slice(0, 10) : null,
+          });
+        }}
       >
+        {view === "issues" && <option value="all">All time</option>}
         <option value="24">Last 24 hours</option>
         <option value="168">Last 7 days</option>
         <option value="720">Last 30 days</option>
+        {view === "issues" && <option value="custom">Custom dates</option>}
       </select>
       <ChevronDown size={13} />
     </label>
@@ -553,6 +612,13 @@ export default function Dashboard() {
           )}
           <nav aria-label="Setup and integrations">
             <AppLink
+              className={view === "notifications" ? "active" : ""}
+              href={sectionHref({ view: "notifications" })}
+            >
+              <Bell size={18} />
+              Notifications
+            </AppLink>
+            <AppLink
               className={view === "setup" ? "active" : ""}
               href={sectionHref({
                 view: "setup",
@@ -695,6 +761,48 @@ export default function Dashboard() {
                         </label>
                         {timeFilter}
                       </div>
+                      {hours === "custom" && (
+                        <form
+                          className={historyStyles.dates}
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            update({
+                              hours: "custom",
+                              from: dateFrom,
+                              to: dateTo,
+                              offset: null,
+                            });
+                          }}
+                        >
+                          <label>
+                            From date (UTC)
+                            <input
+                              type="date"
+                              required
+                              max={dateTo || undefined}
+                              value={dateFrom}
+                              onChange={(event) =>
+                                setDateFrom(event.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            Through date (UTC)
+                            <input
+                              type="date"
+                              required
+                              min={dateFrom || undefined}
+                              value={dateTo}
+                              onChange={(event) =>
+                                setDateTo(event.target.value)
+                              }
+                            />
+                          </label>
+                          <button className="button" type="submit">
+                            Apply dates
+                          </button>
+                        </form>
+                      )}
                       {release && (
                         <p className="telemetry-filter">
                           Release: {release}{" "}
@@ -782,14 +890,22 @@ export default function Dashboard() {
                 )}
                 {view === "mcp" && (
                   <p>
-                    Connect Codex or Claude to your errors, stack traces, and breadcrumbs.
-                    Inspect errors and resolve issues in your projects.
+                    Connect Codex or Claude to your errors, stack traces, and
+                    breadcrumbs. Inspect errors and resolve issues in your
+                    projects.
+                  </p>
+                )}
+                {view === "notifications" && (
+                  <p>
+                    Receive issue alerts in Firefox, on your desktop, and on
+                    your Android phone.
                   </p>
                 )}
               </div>
               <div className="page-actions">
                 {data?.account?.role === "owner" &&
                   view !== "setup" &&
+                  view !== "notifications" &&
                   view !== "mcp" && (
                     <button
                       className="button primary"
@@ -912,17 +1028,36 @@ export default function Dashboard() {
                         ))}
                       </div>
                       <div className="table-footer">
-                        <span>
-                          Showing {offset + 1}–
-                          {Math.min(offset + 30, data.total)} of {data.total}{" "}
-                          issues
+                        <span className={historyStyles.summary}>
+                          Showing {data.offset + 1}–
+                          {Math.min(data.offset + 30, data.total)} of{" "}
+                          {data.total} issues
+                          <small>
+                            {hours === "all"
+                              ? "All time"
+                              : hours === "custom"
+                                ? `${from} – ${to} UTC`
+                                : hours === "24"
+                                  ? "Last 24 hours"
+                                  : hours === "168"
+                                    ? "Last 7 days"
+                                    : "Last 30 days"}{" "}
+                            ·{" "}
+                            {status === "all"
+                              ? "All issues"
+                              : status === "unresolved"
+                                ? "Unresolved"
+                                : status === "resolved"
+                                  ? "Resolved"
+                                  : "Ignored"}
+                          </small>
                         </span>
                         <div>
                           <button
                             className="icon-button"
-                            disabled={!offset}
+                            disabled={!data.offset}
                             onClick={() =>
-                              update({ offset: Math.max(0, offset - 30) })
+                              update({ offset: Math.max(0, data.offset - 30) })
                             }
                             aria-label="Previous page"
                           >
@@ -930,8 +1065,8 @@ export default function Dashboard() {
                           </button>
                           <button
                             className="icon-button"
-                            disabled={offset + 30 >= data.total}
-                            onClick={() => update({ offset: offset + 30 })}
+                            disabled={data.offset + 30 >= data.total}
+                            onClick={() => update({ offset: data.offset + 30 })}
                             aria-label="Next page"
                           >
                             <ChevronRight size={15} />
@@ -1019,6 +1154,7 @@ export default function Dashboard() {
               </div>
             ))}
           {data && view === "mcp" && <McpConnections />}
+          {data && view === "notifications" && <Notifications />}
           {data && telemetryViews[view] && (
             <Telemetry
               key={view}

@@ -82,16 +82,27 @@ Connect **Codex or Claude Code** through **MCP** to search issues, inspect error
 
 | Area                         | Support                                                                                        |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| Issues                       | Grouping, search, filters, resolve/reopen/ignore, stack traces, breadcrumbs, and event context |
+| Issues                       | Complete paginated history, custom date ranges, grouping, search, resolve/reopen/ignore, stack traces, breadcrumbs, and event context |
 | Performance & logs           | Transactions, span timelines, structured logs, and trace correlation                           |
 | Replay & profiles            | DOM replay with playback controls; transaction and continuous sampled profiles                 |
 | Attachments & native crashes | Binary downloads; minidump processing through optional Symbolicator                            |
 | Releases & source maps       | Release tracking and source-map uploads through the UI                                         |
-| Alerts                       | Signed webhooks, persistent delivery queue, retries, and delivery history                      |
+| Alerts                       | Signed webhooks plus browser/Android push for new and reopened errors, with persistent delivery queues |
+| Android app                  | Installable PWA, home screen icon, standalone window, and an offline fallback |
 
 SDK ingestion uses `POST /api/:projectId/envelope/`. Sentry management and `sentry-cli` release/upload APIs are not implemented.
 
+The issue list defaults to **All time**. Use **Issue filters → Custom dates** to
+browse an earlier UTC date range, or choose **All issues** to include resolved and
+ignored issues. The footer shows the complete matching total; 30 issues are loaded
+per page. Within an issue, **Older occurrences** and **Newer occurrences** browse
+its complete event history in pages of 50.
+
 See [SDK compatibility](docs/operations.md#sdk-compatibility) for supported formats, limits, and feature setup.
+
+Open **Notifications** to enable Firefox or phone alerts and install the Android
+app. Each device opts in separately; use a reachable HTTPS address on your phone.
+See [notifications and Android setup](docs/notifications.md).
 
 ## Configuration
 

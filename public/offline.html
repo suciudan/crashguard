@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#050816" />
+    <title>Offline · CrashGuard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+        background: #050816;
+        color: #eef4ff;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+      main {
+        max-width: 25rem;
+        margin: 24px;
+        padding: 32px;
+        background: #0d1526;
+        border: 1px solid #253148;
+        border-radius: 12px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      p {
+        line-height: 1.6;
+        color: #a8b5cc;
+      }
+      a {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 12px 18px;
+        background: #4ea2ff;
+        border-radius: 6px;
+        color: #050816;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      a:focus-visible {
+        outline: 2px solid #eef4ff;
+        outline-offset: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You’re offline</h1>
+      <p>
+        Reconnect to view your CrashGuard issues. Your workspace data is
+        available when you’re back online.
+      </p>
+      <a href="/?view=issues">Try again</a>
+    </main>
+  </body>
+</html>

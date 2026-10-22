@@ -107,6 +107,7 @@ export type DashboardData = {
   projects: Project[];
   issues: Issue[];
   total: number;
+  offset: number;
   environments: string[];
   stats: {
     events: number;

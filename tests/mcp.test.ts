@@ -503,3 +503,120 @@ test("members and owners resolve accessible issues, retries preserve history, an
     await ownerClient.close();
   }
 });
+
+test("MCP searches all stored history by default and pages inclusive historical date ranges", async () => {
+  const history = createProject("Archived service", "node");
+  const ids = saveEvents(
+    history.id,
+    Array.from({ length: 37 }, (_, i) => ({
+      message: `Archived failure ${i}`,
+      fingerprint: ["archive", String(i)],
+    })),
+  );
+  const timestamp = db().prepare(
+    "UPDATE events SET received_at=? WHERE event_id=?",
+  );
+  ids.forEach((eventId, i) =>
+    timestamp.run(
+      i === 0
+        ? "2020-01-01T00:00:00.000Z"
+        : i === 34
+          ? "2020-01-31T23:59:59.999Z"
+          : i === 35
+            ? "2019-12-31T23:59:59.999Z"
+            : i === 36
+              ? "2020-02-01T00:00:00.000Z"
+              : "2020-01-15T12:00:00.000Z",
+      eventId,
+    ),
+  );
+  const client = await connect(token().token);
+  try {
+    const search = { project_id: history.id };
+    const first = await call(client, "search_issues", search);
+    assert.equal(first.hours, "all");
+    assert.equal(first.total, 37);
+    assert.equal(first.offset, 0);
+    assert.equal(first.issues.length, 30);
+    assert.equal(first.next_offset, 30);
+    const last = await call(client, "search_issues", {
+      ...search,
+      offset: first.next_offset,
+    });
+    assert.equal(last.issues.length, 7);
+    assert.equal(last.next_offset, null);
+    assert.equal(
+      new Set([...first.issues, ...last.issues].map((item) => item.id)).size,
+      37,
+    );
+    assert.equal(
+      (await call(client, "search_issues", { ...search, hours: "all" })).total,
+      37,
+    );
+    assert.equal(
+      (await call(client, "search_issues", { ...search, hours: 720 })).total,
+      0,
+    );
+
+    const range = {
+      ...search,
+      hours: "custom",
+      from: "2020-01-01",
+      to: "2020-01-31",
+    };
+    const january = await call(client, "search_issues", range);
+    assert.equal(january.total, 35);
+    assert.equal(january.from, range.from);
+    assert.equal(january.to, range.to);
+    assert.equal(january.next_offset, 30);
+    const januaryLast = await call(client, "search_issues", {
+      ...range,
+      offset: 30,
+    });
+    assert.equal(januaryLast.issues.length, 5);
+    assert.equal(januaryLast.next_offset, null);
+    for (const date of ["2020-01-01", "2020-01-31"])
+      assert.equal(
+        (
+          await call(client, "search_issues", {
+            ...range,
+            from: date,
+            to: date,
+          })
+        ).total,
+        1,
+      );
+
+    for (const offset of [1000001, Number.MAX_SAFE_INTEGER]) {
+      const finalPage = await call(client, "search_issues", {
+        ...search,
+        offset,
+      });
+      assert.equal(finalPage.offset, 30);
+      assert.equal(finalPage.issues.length, 7);
+      assert.equal(finalPage.next_offset, null);
+      const occurrences = await call(client, "get_issue", {
+        issue_id: first.issues[0].id,
+        offset,
+      });
+      assert.deepEqual(occurrences.events, []);
+      assert.equal(occurrences.next_offset, null);
+    }
+    for (const invalid of [
+      { hours: "custom" },
+      { hours: "custom", from: "2020-01-01" },
+      { hours: "custom", from: "2020-02-30", to: "2020-03-01" },
+      { hours: "custom", from: "2020-02-01", to: "2020-01-31" },
+      { hours: "custom", from: "2020-1-01", to: "2020-01-31" },
+      { offset: Number.MAX_SAFE_INTEGER + 1 },
+    ]) {
+      const result = await client.callTool({
+        name: "search_issues",
+        arguments: { ...search, ...invalid },
+      });
+      assert.equal(result.isError, true);
+    }
+  } finally {
+    await client.close();
+  }
+});

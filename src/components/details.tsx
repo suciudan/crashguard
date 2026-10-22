@@ -5,6 +5,8 @@ import {
   Check,
   CheckCheck,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   CircleAlert,
   Clock3,
@@ -25,6 +27,7 @@ import {
 import { findRelatedReplay } from "@/app/actions/telemetry";
 import { AppLink, useAppNavigation } from "./navigation";
 import { useDialog } from "./use-dialog";
+import historyStyles from "./details-history.module.css";
 export function ProjectModal({
   onClose,
   onCreated,
@@ -376,6 +379,9 @@ export function IssuePanel({
     issue: Issue;
     events: StoredEvent[];
     attachmentCount: number;
+    eventTotal: number;
+    eventOffset: number;
+    nextEventOffset: number | null;
   } | null>(null);
   const [error, setError] = useState("");
   const { params, href, update } = useAppNavigation();
@@ -385,6 +391,11 @@ export function IssuePanel({
     ? params.get("tab")!
     : "stack";
   const eventId = params.get("event");
+  const requestedOffset = Number(params.get("eventOffset") || 0);
+  const eventOffset =
+    Number.isSafeInteger(requestedOffset) && requestedOffset >= 0
+      ? requestedOffset
+      : 0;
   const [saving, setSaving] = useState(false);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -405,7 +416,7 @@ export function IssuePanel({
     let cancelled = false;
     setError("");
     setDetail(null);
-    action(getIssue(id, eventId))
+    action(getIssue(id, eventId, eventOffset))
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -415,7 +426,7 @@ export function IssuePanel({
     return () => {
       cancelled = true;
     };
-  }, [id, eventId]);
+  }, [id, eventId, eventOffset]);
   const event = eventId
     ? detail?.events.find((e) => e.event_id === eventId)
     : detail?.events[0];
@@ -553,10 +564,46 @@ export function IssuePanel({
               ))}
             </select>
           </div>
-          {detail.issue.event_count > 50 && (
-            <p className="occurrence-note">
-              Showing the latest 50 occurrences and any linked older occurrence.
-            </p>
+          {detail.eventTotal > 50 && (
+            <div className={historyStyles.history}>
+              <p>
+                Showing occurrences {detail.eventOffset + 1}–
+                {Math.min(detail.eventOffset + 50, detail.eventTotal)} of{" "}
+                {detail.eventTotal}
+                {detail.events.length >
+                Math.min(50, detail.eventTotal - detail.eventOffset)
+                  ? " · Linked occurrence included"
+                  : ""}
+              </p>
+              <div className={historyStyles.controls}>
+                <button
+                  className="button"
+                  aria-label="Newer occurrences"
+                  disabled={detail.eventOffset === 0}
+                  onClick={() =>
+                    update({
+                      eventOffset: Math.max(0, detail.eventOffset - 50) || null,
+                      event: null,
+                    })
+                  }
+                >
+                  <ChevronLeft size={14} /> Newer occurrences
+                </button>
+                <button
+                  className="button"
+                  aria-label="Older occurrences"
+                  disabled={detail.nextEventOffset === null}
+                  onClick={() =>
+                    update({
+                      eventOffset: detail.nextEventOffset,
+                      event: null,
+                    })
+                  }
+                >
+                  Older occurrences <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
           )}
           {eventId && !event && (
             <div className="error-banner" role="alert">

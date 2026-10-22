@@ -13,6 +13,7 @@ services:
       DATABASE_PATH: /app/data/crashguard.sqlite
       INGEST_RATE_LIMIT: ${INGEST_RATE_LIMIT:-120}
       ALERT_WEBHOOK_HOSTS: ${ALERT_WEBHOOK_HOSTS:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       - type: bind
         source: ${CRASHGUARD_DEPLOY_DIR:-/opt/crashguard}/data

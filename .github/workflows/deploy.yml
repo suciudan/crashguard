@@ -124,6 +124,7 @@ jobs:
           CRASHGUARD_PORT: ${{ secrets.CRASHGUARD_PORT || '5000' }}
           INGEST_RATE_LIMIT: ${{ secrets.INGEST_RATE_LIMIT || '120' }}
           ALERT_WEBHOOK_HOSTS: ${{ secrets.ALERT_WEBHOOK_HOSTS }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           SYMBOLICATOR_SOURCES: ${{ secrets.SYMBOLICATOR_SOURCES || '[]' }}
         run: bash scripts/deploy.sh
       - name: Remove registry credentials

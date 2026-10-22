@@ -3,6 +3,21 @@ import { authOrigin, session } from "./lib/auth";
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // Installation and the worker must be available before sign-in. No private
+  // pages or API endpoints are included in this public asset allowlist.
+  if (
+    ["/sw.js", "/offline.html", "/manifest.webmanifest"].includes(path) ||
+    /^\/icons\/(?:pwa-192|pwa-512|maskable-512|badge-96)\.png$/.test(path)
+  ) {
+    if (!["GET", "HEAD"].includes(request.method))
+      return new NextResponse(null, {
+        status: 405,
+        headers: { Allow: "GET, HEAD" },
+      });
+    const response = NextResponse.next();
+    if (path === "/sw.js") response.headers.set("Cache-Control", "no-cache");
+    return response;
+  }
   if (/^\/api\/\d+\/envelope\/?$/.test(path)) {
     // Prevent Next.js from automatically serving preflight for this route.
     return request.method === "POST"

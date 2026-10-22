@@ -4,6 +4,7 @@ import https from "node:https";
 import { createHmac } from "node:crypto";
 import ipaddr from "ipaddr.js";
 import { db } from "./db";
+import { runPushJobs } from "./push";
 import { telemetryDb, saveEnvelope } from "./telemetry";
 import type { SentryEvent, Frame } from "./types";
 
@@ -179,6 +180,7 @@ async function processDump(
   return true;
 }
 export async function runJobs(limit = 10) {
+  await runPushJobs(limit);
   const sql = telemetryDb();
   for (let n = 0; n < limit; n++) {
     const job = sql
@@ -196,8 +198,7 @@ export async function runJobs(limit = 10) {
           | { url: string; secret: string; enabled: number; name: string }
           | undefined;
         if (rule?.enabled) {
-          const origin =
-            process.env.APP_URL || "http://localhost:5000";
+          const origin = process.env.APP_URL || "http://localhost:5000";
           await deliverWebhook(
             rule.url,
             rule.secret,

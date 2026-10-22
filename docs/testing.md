@@ -85,6 +85,34 @@ port with a disposable database. It verifies passkey enrollment, token creation,
 MCP client calls, token revocation, and desktop/mobile layouts. Screenshots are
 saved to `test-results/mcp-desktop.png` and `test-results/mcp-mobile.png`.
 
+## Historical issues and occurrences
+
+`npm test` covers all-time queries, inclusive UTC date ranges, status/project
+filters, access control, stable pagination, and old occurrence links. Run
+`npm run build && npm run test:history` for a disposable Chromium check with 66
+issues and 120 occurrences: all-time defaults, historical date filters, complete
+pagination, reloadable occurrence pages, and desktop/mobile layouts.
+
+## PWA and push notifications
+
+`npm test` covers subscription ownership, project access, queue retries, issue
+regressions, service-worker notification clicks, and offline-cache isolation.
+For a real browser check with an isolated database:
+
+```bash
+npx playwright install chromium firefox
+npm run build
+npm run test:pwa
+```
+
+This verifies the manifest, public install assets, service-worker registration,
+offline fallback, and notification settings in Playwright Chromium and Firefox,
+including an Android-sized viewport. The browser test mocks only permission and
+push-provider enrollment; the app's subscription actions and database are real.
+Cloud push delivery and Android OS permissions still require the **Send test
+notification** action on the target device; they are not simulated as a successful
+external delivery by the automated suite.
+
 ## Docker persistence
 
 For project invitations and account isolation:

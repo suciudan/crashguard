@@ -1,0 +1,103 @@
+.workspace {
+  gap: 20px;
+  min-width: 0;
+}
+.workspace p {
+  color: var(--cg-text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 7px 0 0;
+}
+.card {
+  min-width: 0;
+}
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 550;
+}
+.card h2 svg {
+  color: var(--cg-primary);
+  flex-shrink: 0;
+}
+.status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 20px;
+}
+.status svg {
+  color: var(--cg-text-muted);
+  flex-shrink: 0;
+}
+.status.enabled svg {
+  color: #54cba6;
+}
+.form {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.form label {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+  font-size: 13px;
+}
+.form input {
+  width: 100%;
+}
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.cardHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+.list {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+.list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--cg-border);
+}
+.list li:last-child {
+  border: 0;
+  padding-bottom: 0;
+}
+.list strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.list p {
+  margin-bottom: 0;
+}
+.notice:empty {
+  display: none;
+}
+@media (max-width: 600px) {
+  .list li {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .form label {
+    min-width: 100%;
+  }
+}
