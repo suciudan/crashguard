@@ -15,6 +15,7 @@ services:
       AUTH_ORIGIN: ${AUTH_ORIGIN:-${APP_URL:-http://localhost:5000}}
       INGEST_RATE_LIMIT: ${INGEST_RATE_LIMIT:-120}
       ALERT_WEBHOOK_HOSTS: ${ALERT_WEBHOOK_HOSTS:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     volumes:
       # Mount the directory so SQLite's database, WAL, and SHM stay together.
       - type: bind

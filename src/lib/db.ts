@@ -5,7 +5,9 @@ import { randomBytes } from "node:crypto";
 import { normalizeEvent } from "./events";
 import { migrateAccounts } from "./accounts-schema";
 import { migrateMcp } from "./mcp-schema";
+import { migratePush, enqueueIssueNotifications } from "./push-schema";
 import { projectScope } from "./access";
+import { issueRange } from "./issue-range";
 import type {
   Project,
   SentryEvent,
@@ -40,6 +42,7 @@ export function db() {
   `);
   migrateAccounts(instance);
   migrateMcp(instance);
+  migratePush(instance);
   return instance;
 }
 export function createProject(name: string, platform: string): Project {
@@ -94,6 +97,11 @@ export function saveEvents(projectId: number, inputs: SentryEvent[]) {
         .prepare("SELECT id FROM events WHERE project_id = ? AND event_id = ?")
         .get(projectId, n.event.event_id!);
       if (existing) return n.event.event_id!;
+      const previous = db()
+        .prepare(
+          "SELECT status FROM issues WHERE project_id=? AND fingerprint=?",
+        )
+        .get(projectId, n.fingerprint) as { status: string } | undefined;
       const now = new Date().toISOString();
       db()
         .prepare(
@@ -121,6 +129,17 @@ export function saveEvents(projectId: number, inputs: SentryEvent[]) {
           n.userKey,
           JSON.stringify(n.event),
         );
+      if (
+        (n.level === "error" || n.level === "fatal") &&
+        (!previous || previous.status === "resolved")
+      )
+        enqueueIssueNotifications(
+          db(),
+          projectId,
+          issue.id,
+          n.event.event_id!,
+          previous ? "reopened" : "new",
+        );
       return n.event.event_id!;
     }),
   )();
@@ -128,12 +147,17 @@ export function saveEvents(projectId: number, inputs: SentryEvent[]) {
 export function dashboard(
   params: URLSearchParams,
 ): Omit<DashboardData, "sections"> {
-  const hours = [24, 168, 720].includes(Number(params.get("hours")))
-    ? Number(params.get("hours"))
-    : 24;
-  const since = new Date(Date.now() - hours * 3600000).toISOString();
-  const where = ["e.received_at >= ?", projectScope("e.project_id")];
-  const args: (string | number)[] = [since];
+  const range = issueRange(params);
+  const where = [projectScope("e.project_id")];
+  const args: (string | number)[] = [];
+  if (range.from) {
+    where.push("e.received_at >= ?");
+    args.push(range.from);
+  }
+  if (range.to) {
+    where.push("e.received_at <= ?");
+    args.push(range.to);
+  }
   if (params.get("project")) {
     where.push("e.project_id = ?");
     args.push(Number(params.get("project")) || -1);
@@ -152,11 +176,15 @@ export function dashboard(
       `SELECT COUNT(*) AS events, COUNT(DISTINCT e.issue_id) AS issues, COUNT(DISTINCT CASE WHEN i.status = 'unresolved' THEN i.id END) AS active, COUNT(DISTINCT e.user_key) AS users, COUNT(DISTINCT CASE WHEN i.status = 'resolved' THEN i.id END) AS resolved FROM events e JOIN issues i ON i.id=e.issue_id WHERE ${base}`,
     )
     .get(...args) as DashboardData["stats"];
-  const activity = db()
-    .prepare(
-      `SELECT substr(e.received_at,1,13) AS hour, COUNT(*) AS count FROM events e WHERE ${base} GROUP BY hour ORDER BY hour`,
-    )
-    .all(...args) as DashboardData["activity"];
+  // The chart is used for bounded dashboard windows only. Issue history can
+  // span years without materializing an unused row for every historical hour.
+  const activity = range.chart
+    ? (db()
+        .prepare(
+          `SELECT substr(e.received_at,1,13) AS hour, COUNT(*) AS count FROM events e WHERE ${base} GROUP BY hour ORDER BY hour`,
+        )
+        .all(...args) as DashboardData["activity"])
+    : [];
   if (params.get("status") && params.get("status") !== "all") {
     where.push("i.status = ?");
     args.push(params.get("status")!);
@@ -172,14 +200,17 @@ export function dashboard(
       .prepare(`SELECT COUNT(DISTINCT i.id) AS total ${join}`)
       .get(...args) as { total: number }
   ).total;
-  const offset = Math.max(
-    0,
-    Math.min(1000000, Math.floor(Number(params.get("offset")) || 0)),
+  const requestedOffset = Number(params.get("offset"));
+  const offset = Math.min(
+    Number.isSafeInteger(requestedOffset) && requestedOffset > 0
+      ? requestedOffset
+      : 0,
+    Math.max(0, Math.floor((total - 1) / 30) * 30),
   );
   const order =
     params.get("sort") === "frequency"
-      ? "event_count DESC, last_seen DESC"
-      : "last_seen DESC";
+      ? "event_count DESC, last_seen DESC, i.id DESC"
+      : "last_seen DESC, i.id DESC";
   const issues = db()
     .prepare(
       `SELECT i.*, p.name AS project_name, p.platform, COUNT(*) AS event_count, COUNT(DISTINCT e.user_key) AS user_count, MAX(e.received_at) AS last_seen, CASE WHEN COUNT(DISTINCT e.environment) > 1 THEN 'multiple' ELSE MIN(e.environment) END AS environment ${join} GROUP BY i.id ORDER BY ${order} LIMIT 30 OFFSET ?`,
@@ -192,21 +223,35 @@ export function dashboard(
       )
       .all() as { environment: string }[]
   ).map((e) => e.environment);
-  return { projects: projects(), issues, total, stats, activity, environments };
+  return {
+    projects: projects(),
+    issues,
+    total,
+    offset,
+    stats,
+    activity,
+    environments,
+  };
 }
-export function issueDetail(id: number, eventId?: string) {
+export function issueDetail(id: number, eventId?: string, eventOffset = 0) {
   const issue = db()
     .prepare(
       `SELECT i.*, p.name AS project_name, p.platform, (SELECT COUNT(*) FROM events WHERE issue_id = i.id) AS event_count, (SELECT COUNT(DISTINCT user_key) FROM events WHERE issue_id = i.id) AS user_count FROM issues i JOIN projects p ON p.id = i.project_id WHERE i.id = ? AND ${projectScope("i.project_id")}`,
     )
     .get(id) as Issue | undefined;
   if (!issue) return null;
+  const eventTotal = issue.event_count;
+  const lastOffset = Math.max(0, Math.ceil(eventTotal / 50) - 1) * 50;
+  const offset =
+    Number.isSafeInteger(eventOffset) && eventOffset >= 0
+      ? Math.min(Math.floor(eventOffset / 50) * 50, lastOffset)
+      : 0;
   const events = db()
     .prepare(
-      "SELECT * FROM events WHERE issue_id = ? ORDER BY received_at DESC, id DESC LIMIT 50",
+      "SELECT * FROM events WHERE issue_id = ? ORDER BY received_at DESC, id DESC LIMIT 50 OFFSET ?",
     )
-    .all(id) as (Omit<StoredEvent, "payload"> & { payload: string })[];
-  // A shared occurrence stays accessible even after it leaves the latest 50.
+    .all(id, offset) as (Omit<StoredEvent, "payload"> & { payload: string })[];
+  // Shared links remain accessible even when the occurrence is outside this page.
   if (eventId && !events.some((event) => event.event_id === eventId)) {
     const selected = db()
       .prepare("SELECT * FROM events WHERE issue_id = ? AND event_id = ?")
@@ -215,6 +260,9 @@ export function issueDetail(id: number, eventId?: string) {
   }
   return {
     issue,
+    eventTotal,
+    eventOffset: offset,
+    nextEventOffset: offset + 50 < eventTotal ? offset + 50 : null,
     events: events.map((e) => ({
       ...e,
       payload: JSON.parse(e.payload) as SentryEvent,

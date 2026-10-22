@@ -50,6 +50,7 @@ Set up an HTTPS reverse proxy on the VPS, forwarding to `127.0.0.1:5000`. The ap
 | `CRASHGUARD_PORT` | Loopback port; defaults to `5000` |
 | `INGEST_RATE_LIMIT` | Requests per project per minute; defaults to `120` |
 | `ALERT_WEBHOOK_HOSTS` | Optional allowlist of private webhook hostnames |
+| `VAPID_SUBJECT` | Optional Web Push operator contact (`mailto:` or HTTPS); defaults to the production origin |
 | `CRASHGUARD_NATIVE` | Set to `1` to start Symbolicator; defaults to `0` |
 | `SYMBOLICATOR_SOURCES` | Optional Symbolicator source configuration; defaults to `[]` |
 

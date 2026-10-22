@@ -13,7 +13,17 @@ try {
   database.transaction(() => {
     if (
       database
-        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='mcp_tokens'")
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='push_subscriptions'",
+        )
+        .get()
+    )
+      database.prepare("DELETE FROM push_subscriptions").run();
+    if (
+      database
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='mcp_tokens'",
+        )
         .get()
     )
       database

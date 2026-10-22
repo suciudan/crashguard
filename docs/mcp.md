@@ -86,16 +86,25 @@ See the [official Claude Code MCP guide](https://code.claude.com/docs/en/mcp#env
 
 ## Tools
 
-| Tool            | Purpose                                                                                                                                 |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_projects` | Accessible project IDs, names, platforms, and event counts; excludes SDK keys                                                           |
-| `search_issues` | Search title, culprit, or project name; filter project, status, environment, release, and 24/168/720-hour window; sort recent/frequency |
-| `get_issue`     | Issue metadata and paginated event occurrences across its full history                                                                  |
-| `get_event`     | One occurrence with source-mapped stack traces, breadcrumbs, tags, and context                                                          |
-| `resolve_issue` | Mark an accessible issue as resolved using its numeric `issue_id`; returns the status and dashboard URL                                 |
+| Tool            | Purpose                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_projects` | Accessible project IDs, names, platforms, and event counts; excludes SDK keys                                                                                      |
+| `search_issues` | Search title, culprit, or project name; filter project, status, environment, release, and all history, recent hours, or inclusive UTC dates; sort recent/frequency |
+| `get_issue`     | Issue metadata and paginated event occurrences across its full history                                                                                             |
+| `get_event`     | One occurrence with source-mapped stack traces, breadcrumbs, tags, and context                                                                                     |
+| `resolve_issue` | Mark an accessible issue as resolved using its numeric `issue_id`; returns the status and dashboard URL                                                            |
 
-Search defaults to unresolved issues received in the last 24 hours. Issue and
-occurrence pages contain at most 30 results; pass `next_offset` back as `offset`.
+Search defaults to unresolved issues across **all stored history** (`hours: "all"`).
+Use `status: "all"` to include resolved and ignored issues. Optional recent windows
+are `hours: 24`, `168`, or `720`. For a historical date range, use
+`{"hours": "custom", "from": "2026-01-01", "to": "2026-01-31"}`. Both dates are
+required and inclusive in UTC; they filter when events were received.
+
+Issue and occurrence pages contain at most 30 results, with no total history cap;
+pass `next_offset` back as `offset` until it is `null`. Search also returns `total`
+and the applied `offset`. If a search offset is past the last result, it returns
+the final page with its actual offset. Pagination offsets support all nonnegative
+safe integers rather than imposing an arbitrary maximum result count.
 Event lookup requires both `issue_id` and the 32-character `event_id`. Large event
 payloads are bounded and include `truncated: true`; the returned dashboard URL
 opens the full event.

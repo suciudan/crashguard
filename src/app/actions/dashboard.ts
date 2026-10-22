@@ -36,13 +36,19 @@ export async function addProject(input: { name: string; platform: string }) {
     return createProject(parsed.data.name, parsed.data.platform);
   });
 }
-export async function getIssue(id: number, eventId?: string | null) {
+export async function getIssue(
+  id: number,
+  eventId?: string | null,
+  eventOffset = 0,
+) {
   return runAction(() => {
     if (!Number.isSafeInteger(id) || id < 1)
       throw new ActionError("Invalid issue ID.");
     if (eventId && !/^[a-f0-9]{32}$/i.test(eventId))
       throw new ActionError("Invalid event ID.");
-    const detail = issueDetail(id, eventId || undefined);
+    if (!Number.isSafeInteger(eventOffset) || eventOffset < 0)
+      throw new ActionError("Invalid occurrence offset.");
+    const detail = issueDetail(id, eventId || undefined, eventOffset);
     if (!detail) throw new ActionError("Issue not found");
     const selectedEvent = eventId
       ? detail.events.find((event) => event.event_id === eventId)
